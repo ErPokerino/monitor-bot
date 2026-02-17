@@ -1,0 +1,120 @@
+# ===========================================================================
+# Tender & Event Monitor – Configuration
+# ===========================================================================
+# This file controls the search scope, classification parameters, company
+# profile, event feeds, and email delivery. Secrets (API keys, SMTP
+# passwords) stay in .env.
+#
+# Use --config to point to a different file:
+#   uv run monitor-bot --config config.test.toml
+# ===========================================================================
+
+[gemini]
+# Model to use for classification. Options:
+#   gemini-3-flash-preview  (fast, cheaper)
+#   gemini-3-pro-preview    (more accurate, slower)
+model = "gemini-3-flash-preview"
+
+[classification]
+# Minimum relevance score (1-10) to include in the report
+relevance_threshold = 6
+
+# ---------------------------------------------------------------------------
+# Search scope
+# ---------------------------------------------------------------------------
+[scope]
+# How many days back to search
+lookback_days = 7
+
+# Max results per collector (0 = unlimited).
+# Set to a low number (e.g. 20) for faster runs.
+max_results = 0
+
+# CPV code prefixes to filter for. These cover IT services:
+#   72   = IT services (consulting, development, support)
+#   48   = Software packages and information systems
+#   62   = Computer-related services (legacy codes)
+#   64.2 = Telecommunications services
+cpv_codes = ["72", "48", "62", "64.2"]
+
+# Country codes (ISO 3166-1 alpha-2) for TED geographic filtering.
+# Default: full EMEA region.
+countries = [
+    # EU / EEA
+    "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR",
+    "DE", "GR", "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL",
+    "PL", "PT", "RO", "SK", "SI", "ES", "SE",
+    # EEA non-EU
+    "IS", "LI", "NO",
+    # Other EMEA
+    "CH", "GB", "TR", "IL", "AE", "SA", "ZA",
+]
+
+# ---------------------------------------------------------------------------
+# Collectors – enable/disable individual data sources
+# ---------------------------------------------------------------------------
+[collectors]
+ted        = true   # TED (Tenders Electronic Daily) – EU-wide
+anac       = true   # ANAC Open Data – Italian public contracts
+events     = true   # RSS/Atom feeds – events and news
+web_events = true   # Web page scraping – event pages (AI Week, big vendor events, etc.)
+
+# ---------------------------------------------------------------------------
+# Event feeds – RSS/Atom URLs to monitor for events
+# ---------------------------------------------------------------------------
+# Leave empty [] to use the built-in defaults (ForumPA, AgID, EU Digital, SAP).
+# Or specify your own list:
+[events]
+feeds = [
+    "https://www.forumpa.it/feed/",
+    "https://www.agid.gov.it/it/rss.xml",
+    "https://innovazione.gov.it/feed.xml",
+    "https://digital-strategy.ec.europa.eu/en/rss.xml",
+    "https://community.sap.com/khhcw49343/rss/board?board.id=technology-blog-sap",
+]
+
+# Web pages to scrape for events (non-RSS).
+# These act as **seed pages**: the collector crawls them to discover links to
+# specific event pages, then fetches each event page for details (two-phase).
+web_pages = [
+    "https://www.aiweek.it/",
+    "https://cloud.google.com/events?hl=it",
+    "https://aws.amazon.com/events/",
+    "https://aitour.microsoft.com/",
+    "https://azure.microsoft.com/en-us/community/events/",
+    "https://www.databricks.com/dataaisummit/",
+]
+
+# ---------------------------------------------------------------------------
+# Company profile – used as context for Gemini classification
+# ---------------------------------------------------------------------------
+[company]
+profile = """
+We are a mid-to-large IT consulting and services company operating in Italy \
+and across the EMEA region. Our core competencies are:
+
+1. SAP: Implementation, migration (S/4HANA), integration, and support of SAP \
+   ecosystems including SAP BTP, SAP Analytics Cloud, and ABAP development.
+2. Data Engineering: Design and implementation of data platforms, ETL/ELT \
+   pipelines, data lakes, data warehouses (Snowflake, Databricks, BigQuery), \
+   and BI solutions.
+3. AI / Machine Learning: Development of ML models, NLP solutions, computer \
+   vision, MLOps, and Generative AI applications for enterprise use cases.
+4. Cloud Infrastructure: Cloud architecture, migration, and managed services \
+   on AWS, Azure, and Google Cloud. DevOps, Kubernetes, IaC (Terraform), and \
+   SRE practices.
+
+We typically pursue projects valued between 100,000 EUR and 50,000,000 EUR, \
+working with public administrations, large enterprises, and utilities. We \
+have the certifications and track record required for public procurement in \
+Italy and the EU.
+"""
+
+# ---------------------------------------------------------------------------
+# Email delivery (optional)
+# ---------------------------------------------------------------------------
+# SMTP credentials (host, user, password) are in .env.
+# Only configure addresses here.
+[email]
+from = ""
+to   = ""

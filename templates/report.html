@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Report Monitoraggio Bandi ed Eventi</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: #f4f6f9;
+    color: #1a1a2e;
+    margin: 0;
+    padding: 0;
+  }
+  .container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 24px 16px;
+  }
+  .header {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    color: #ffffff;
+    padding: 32px 28px;
+    border-radius: 12px;
+    margin-bottom: 24px;
+  }
+  .header h1 {
+    margin: 0 0 8px 0;
+    font-size: 24px;
+    font-weight: 700;
+  }
+  .header .subtitle {
+    opacity: 0.85;
+    font-size: 14px;
+  }
+
+  /* --- Summary Stats --- */
+  .summary {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+  }
+  .stat-card {
+    flex: 1 1 140px;
+    background: #ffffff;
+    border-radius: 10px;
+    padding: 18px 16px;
+    text-align: center;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .stat-card .number {
+    font-size: 28px;
+    font-weight: 700;
+    color: #0f3460;
+  }
+  .stat-card .label {
+    font-size: 12px;
+    color: #6c757d;
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* --- Filter Bar --- */
+  .filter-bar {
+    background: #ffffff;
+    border-radius: 10px;
+    padding: 14px 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .filter-bar .filter-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+    margin-right: 4px;
+  }
+  .filter-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 2px solid #dee2e6;
+    background: #fff;
+    color: #555;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .filter-btn:hover {
+    border-color: #0f3460;
+    color: #0f3460;
+  }
+  .filter-btn.active {
+    border-color: #0f3460;
+    background: #0f3460;
+    color: #fff;
+  }
+  .filter-btn .count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    background: rgba(0,0,0,0.08);
+    color: inherit;
+    padding: 0 5px;
+  }
+  .filter-btn.active .count {
+    background: rgba(255,255,255,0.25);
+  }
+
+  /* --- Category Breakdown --- */
+  .categories {
+    background: #ffffff;
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin-bottom: 28px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .categories h3 {
+    margin: 0 0 12px 0;
+    font-size: 15px;
+    color: #333;
+  }
+  .cat-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 6px;
+    font-size: 14px;
+  }
+  .cat-badge {
+    display: inline-block;
+    width: 56px;
+    text-align: center;
+    padding: 3px 0;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 11px;
+    color: #fff;
+    margin-right: 10px;
+  }
+  .cat-SAP   { background: #0070f2; }
+  .cat-Data  { background: #e67e22; }
+  .cat-AI    { background: #8e44ad; }
+  .cat-Cloud { background: #27ae60; }
+  .cat-Other { background: #95a5a6; }
+
+  /* --- Type badges --- */
+  .type-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 11px;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .type-Bando    { background: #2980b9; }
+  .type-Concorso { background: #d35400; }
+  .type-Evento   { background: #8e44ad; }
+
+  /* --- Source badges --- */
+  .source-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 10px;
+    color: #fff;
+    letter-spacing: 0.3px;
+    margin-left: 4px;
+    vertical-align: middle;
+  }
+  .source-TED        { background: #2c3e50; }
+  .source-ANAC       { background: #16a085; }
+  .source-Event      { background: #8e44ad; }
+  .source-Regionale  { background: #e67e22; }
+
+  /* --- Opportunity Cards --- */
+  .opp-card {
+    background: #ffffff;
+    border-radius: 10px;
+    padding: 20px 22px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    border-left: 5px solid #0f3460;
+  }
+  .opp-card.hidden {
+    display: none;
+  }
+  .opp-card .top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .opp-card h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1a1a2e;
+    line-height: 1.35;
+  }
+  .score-badge {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    font-weight: 700;
+    font-size: 16px;
+    color: #fff;
+  }
+  .score-high   { background: #27ae60; }
+  .score-medium { background: #f39c12; }
+  .score-low    { background: #e74c3c; }
+
+  .meta-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 20px;
+    font-size: 13px;
+    color: #555;
+    margin-bottom: 10px;
+  }
+  .meta-grid span {
+    white-space: nowrap;
+  }
+  .meta-grid .key { font-weight: 600; color: #333; }
+
+  .reason {
+    font-size: 14px;
+    color: #444;
+    line-height: 1.5;
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    background: #f8f9fa;
+    border-radius: 6px;
+  }
+  .requirements {
+    font-size: 13px;
+    color: #555;
+    margin: 0;
+    padding-left: 18px;
+  }
+  .requirements li { margin-bottom: 3px; }
+
+  .opp-link {
+    display: inline-block;
+    margin-top: 10px;
+    font-size: 13px;
+    color: #0f3460;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .opp-link:hover { text-decoration: underline; }
+
+  .deadline-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .deadline-bar .dl-icon {
+    font-size: 15px;
+    line-height: 1;
+  }
+  .deadline-upcoming {
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffc107;
+  }
+  .deadline-far {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #28a745;
+  }
+  .deadline-none {
+    background: #e2e3e5;
+    color: #6c757d;
+    border: 1px solid #ced4da;
+  }
+
+  /* --- Date Filter Bar --- */
+  .date-filter-bar {
+    background: #ffffff;
+    border-radius: 10px;
+    padding: 14px 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .date-filter-bar .filter-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+    margin-right: 4px;
+  }
+  .date-range-inputs {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 6px;
+  }
+  .date-range-inputs label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #555;
+  }
+  .date-range-inputs input[type="date"] {
+    padding: 4px 8px;
+    border: 2px solid #dee2e6;
+    border-radius: 8px;
+    font-size: 12px;
+    font-family: inherit;
+    color: #333;
+    background: #fff;
+    cursor: pointer;
+    transition: border-color 0.15s ease;
+  }
+  .date-range-inputs input[type="date"]:focus {
+    outline: none;
+    border-color: #0f3460;
+  }
+  .date-separator {
+    color: #999;
+    font-size: 13px;
+  }
+  .visible-count {
+    font-size: 12px;
+    color: #6c757d;
+    margin-left: auto;
+    font-weight: 600;
+  }
+
+  /* --- Source Filter Bar --- */
+  .source-filter-bar {
+    background: #ffffff;
+    border-radius: 10px;
+    padding: 14px 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .source-filter-bar .filter-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+    margin-right: 4px;
+  }
+  .source-select {
+    padding: 6px 32px 6px 12px;
+    border: 2px solid #dee2e6;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    color: #555;
+    background: #fff;
+    cursor: pointer;
+    transition: border-color 0.15s ease;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23555' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    min-width: 200px;
+    max-width: 400px;
+  }
+  .source-select:focus {
+    outline: none;
+    border-color: #0f3460;
+  }
+  .source-select:hover {
+    border-color: #0f3460;
+    color: #0f3460;
+  }
+
+  .no-results {
+    text-align: center;
+    padding: 40px;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    margin-bottom: 16px;
+  }
+  .no-results p {
+    font-size: 16px;
+    color: #888;
+    margin: 0;
+  }
+
+  .footer {
+    text-align: center;
+    font-size: 12px;
+    color: #999;
+    margin-top: 32px;
+    padding-top: 16px;
+    border-top: 1px solid #e0e0e0;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>Report Monitoraggio Bandi ed Eventi</h1>
+    <div class="subtitle">Generato il {{ generated_at }} | Periodo: ultimi {{ lookback_days }} giorni</div>
+  </div>
+
+  <!-- Summary Stats -->
+  <div class="summary">
+    <div class="stat-card">
+      <div class="number">{{ total_analyzed }}</div>
+      <div class="label">Analizzati</div>
+    </div>
+    <div class="stat-card">
+      <div class="number">{{ relevant_count }}</div>
+      <div class="label">Rilevanti</div>
+    </div>
+    <div class="stat-card">
+      <div class="number">{{ threshold }}</div>
+      <div class="label">Score Minimo</div>
+    </div>
+  </div>
+
+  <!-- Filter Bar -->
+  {% if opportunities %}
+  <!-- Type Filter -->
+  <div class="filter-bar">
+    <span class="filter-label">Filtra per tipo:</span>
+    <button class="filter-btn active" data-filter="type" data-value="all" onclick="setTypeFilter(this, 'all')">
+      Tutti <span class="count">{{ opportunities|length }}</span>
+    </button>
+    {% if type_counts.get('Bando', 0) > 0 %}
+    <button class="filter-btn" data-filter="type" data-value="Bando" onclick="setTypeFilter(this, 'Bando')">
+      Bandi <span class="count">{{ type_counts['Bando'] }}</span>
+    </button>
+    {% endif %}
+    {% if type_counts.get('Concorso', 0) > 0 %}
+    <button class="filter-btn" data-filter="type" data-value="Concorso" onclick="setTypeFilter(this, 'Concorso')">
+      Concorsi <span class="count">{{ type_counts['Concorso'] }}</span>
+    </button>
+    {% endif %}
+    {% if type_counts.get('Evento', 0) > 0 %}
+    <button class="filter-btn" data-filter="type" data-value="Evento" onclick="setTypeFilter(this, 'Evento')">
+      Eventi <span class="count">{{ type_counts['Evento'] }}</span>
+    </button>
+    {% endif %}
+  </div>
+
+  <!-- Date Filter -->
+  <div class="date-filter-bar">
+    <span class="filter-label">Filtra per data:</span>
+    <button class="filter-btn active" data-filter="date" data-value="all" onclick="setDateFilter(this, 'all')">
+      Tutte
+    </button>
+    <button class="filter-btn" data-filter="date" data-value="7" onclick="setDateFilter(this, '7')">
+      Prossimi 7 gg
+    </button>
+    <button class="filter-btn" data-filter="date" data-value="30" onclick="setDateFilter(this, '30')">
+      Prossimi 30 gg
+    </button>
+    <button class="filter-btn" data-filter="date" data-value="90" onclick="setDateFilter(this, '90')">
+      Prossimi 90 gg
+    </button>
+    <button class="filter-btn" data-filter="date" data-value="custom" onclick="setDateFilter(this, 'custom')">
+      Personalizzato
+    </button>
+    <div class="date-range-inputs" id="customDateRange" style="display:none;">
+      <label for="dateFrom">Da</label>
+      <input type="date" id="dateFrom" onchange="applyFilters()">
+      <span class="date-separator">&ndash;</span>
+      <label for="dateTo">A</label>
+      <input type="date" id="dateTo" onchange="applyFilters()">
+    </div>
+    <span class="visible-count" id="visibleCount"></span>
+  </div>
+
+  <!-- Source/Vendor Filter -->
+  <div class="source-filter-bar">
+    <span class="filter-label">Filtra per fonte:</span>
+    <select class="source-select" id="sourceSelect" onchange="applyFilters()">
+      <option value="all">Tutte le fonti</option>
+    </select>
+  </div>
+  {% endif %}
+
+  <!-- Category Breakdown -->
+  {% if category_counts %}
+  <div class="categories">
+    <h3>Ripartizione per categoria</h3>
+    {% for cat, count in category_counts.items() %}
+    <div class="cat-row">
+      <span class="cat-badge cat-{{ cat }}">{{ cat }}</span>
+      <span>{{ count }} opportunit&agrave;</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Opportunity Cards -->
+  {% for item in opportunities %}
+  {% set opp = item.opportunity %}
+  {% set cls = item.classification %}
+  <div class="opp-card" data-type="{{ opp.opportunity_type.value }}" data-deadline="{{ opp.deadline.isoformat() if opp.deadline else '' }}" data-authority="{{ opp.contracting_authority or '' }}" style="border-left-color: {% if cls.relevance_score >= 8 %}#27ae60{% elif cls.relevance_score >= 6 %}#f39c12{% else %}#e74c3c{% endif %};">
+    <div class="top-row">
+      <h3>{{ opp.title }}</h3>
+      <span class="score-badge {% if cls.relevance_score >= 8 %}score-high{% elif cls.relevance_score >= 6 %}score-medium{% else %}score-low{% endif %}">
+        {{ cls.relevance_score }}
+      </span>
+    </div>
+
+    {% if opp.deadline %}
+    {% set days_left = (opp.deadline - today).days %}
+    <div class="deadline-bar {% if days_left <= 14 %}deadline-upcoming{% else %}deadline-far{% endif %}">
+      <span class="dl-icon">&#128197;</span>
+      {% if opp.opportunity_type.value == 'Evento' %}
+      <span>Data evento: {{ opp.deadline.strftime('%d/%m/%Y') }}{% if days_left >= 0 %} &mdash; tra {{ days_left }} giorni{% endif %}</span>
+      {% else %}
+      <span>Scadenza: {{ opp.deadline.strftime('%d/%m/%Y') }}{% if days_left >= 0 %} &mdash; {{ days_left }} giorni rimasti{% endif %}</span>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="deadline-bar deadline-none">
+      <span class="dl-icon">&#128197;</span>
+      {% if opp.opportunity_type.value == 'Evento' %}
+      <span>Data evento: non specificata</span>
+      {% else %}
+      <span>Scadenza: non specificata</span>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="meta-grid">
+      <span><span class="key">Tipo:</span> <span class="type-badge type-{{ opp.opportunity_type.value }}">{{ opp.opportunity_type.value }}</span></span>
+      <span><span class="key">Ente:</span> {{ opp.contracting_authority or "N/A" }}</span>
+      <span><span class="key">Paese:</span> {{ opp.country or "N/A" }}</span>
+      {% if opp.estimated_value %}
+      <span><span class="key">Valore:</span> {{ "{:,.0f}".format(opp.estimated_value) }} {{ opp.currency }}</span>
+      {% endif %}
+      <span><span class="key">Categoria:</span> <span class="cat-badge cat-{{ cls.category.value }}">{{ cls.category.value }}</span></span>
+      <span><span class="key">Fonte:</span> {{ opp.source.value }}</span>
+    </div>
+
+    <div class="reason">{{ cls.reason }}</div>
+
+    {% if cls.key_requirements %}
+    <ul class="requirements">
+      {% for req in cls.key_requirements %}
+      <li>{{ req }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if opp.source_url %}
+    <a class="opp-link" href="{{ opp.source_url }}" target="_blank">Vai alla fonte &rarr;</a>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  {% if not opportunities %}
+  <div class="no-results">
+    <p>Nessuna opportunit&agrave; rilevante trovata in questo periodo.</p>
+  </div>
+  {% endif %}
+
+  <div class="footer">
+    Monitoraggio Bandi ed Eventi &mdash; report generato automaticamente{% if elapsed_display %} in {{ elapsed_display }}{% endif %}.
+  </div>
+</div>
+
+<script>
+var activeType = 'all';
+var activeDateMode = 'all';
+
+function setTypeFilter(btn, type) {
+  activeType = type;
+  document.querySelectorAll('[data-filter="type"]').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+  applyFilters();
+}
+
+function setDateFilter(btn, mode) {
+  activeDateMode = mode;
+  document.querySelectorAll('[data-filter="date"]').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+
+  var customRange = document.getElementById('customDateRange');
+  if (mode === 'custom') {
+    customRange.style.display = 'inline-flex';
+  } else {
+    customRange.style.display = 'none';
+  }
+  applyFilters();
+}
+
+function getActiveSource() {
+  var sel = document.getElementById('sourceSelect');
+  return sel ? sel.value : 'all';
+}
+
+function applyFilters() {
+  var cards = document.querySelectorAll('.opp-card');
+  var today = new Date();
+  today.setHours(0, 0, 0, 0);
+  var visible = 0;
+  var activeSource = getActiveSource();
+
+  var dateFrom = null, dateTo = null;
+  if (activeDateMode === 'custom') {
+    var fromVal = document.getElementById('dateFrom').value;
+    var toVal = document.getElementById('dateTo').value;
+    if (fromVal) dateFrom = new Date(fromVal + 'T00:00:00');
+    if (toVal) dateTo = new Date(toVal + 'T23:59:59');
+  } else if (activeDateMode !== 'all') {
+    var days = parseInt(activeDateMode, 10);
+    dateFrom = today;
+    dateTo = new Date(today.getTime() + days * 86400000);
+  }
+
+  cards.forEach(function(card) {
+    var typeMatch = (activeType === 'all' || card.getAttribute('data-type') === activeType);
+
+    var dateMatch = true;
+    if (activeDateMode !== 'all') {
+      var dl = card.getAttribute('data-deadline');
+      if (!dl) {
+        dateMatch = false;
+      } else {
+        var cardDate = new Date(dl + 'T00:00:00');
+        if (dateFrom && cardDate < dateFrom) dateMatch = false;
+        if (dateTo && cardDate > dateTo) dateMatch = false;
+      }
+    }
+
+    var sourceMatch = true;
+    if (activeSource !== 'all') {
+      var auth = (card.getAttribute('data-authority') || '').toLowerCase();
+      if (auth !== activeSource.toLowerCase()) sourceMatch = false;
+    }
+
+    if (typeMatch && dateMatch && sourceMatch) {
+      card.classList.remove('hidden');
+      visible++;
+    } else {
+      card.classList.add('hidden');
+    }
+  });
+
+  var countEl = document.getElementById('visibleCount');
+  if (countEl) {
+    var total = cards.length;
+    var anyFilter = (activeType !== 'all' || activeDateMode !== 'all' || activeSource !== 'all');
+    if (anyFilter) {
+      countEl.textContent = visible + ' / ' + total + ' visibili';
+    } else {
+      countEl.textContent = '';
+    }
+  }
+}
+
+/* Populate the source dropdown dynamically from card data-authority values */
+(function populateSourceDropdown() {
+  var cards = document.querySelectorAll('.opp-card');
+  var counts = {};
+
+  cards.forEach(function(card) {
+    var auth = card.getAttribute('data-authority') || '';
+    if (!auth) return;
+    counts[auth] = (counts[auth] || 0) + 1;
+  });
+
+  var entries = Object.keys(counts).map(function(k) { return { name: k, count: counts[k] }; });
+  entries.sort(function(a, b) { return b.count - a.count || a.name.localeCompare(b.name); });
+
+  var sel = document.getElementById('sourceSelect');
+  if (!sel) return;
+
+  entries.forEach(function(entry) {
+    var opt = document.createElement('option');
+    opt.value = entry.name;
+    opt.textContent = entry.name + ' (' + entry.count + ')';
+    sel.appendChild(opt);
+  });
+})();
+</script>
+</body>
+</html>

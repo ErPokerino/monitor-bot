@@ -1,0 +1,61 @@
+# ===========================================================================
+# Tender & Event Monitor – MODALITÀ TEST
+# ===========================================================================
+# Configurazione minimale per verificare rapidamente il funzionamento
+# della pipeline end-to-end. Riduce fonti, risultati e scope geografico
+# per completare in circa 1-2 minuti.
+#
+# Lancio:
+#   uv run monitor-bot --test --no-resume
+#
+# Cosa testa:
+#   - Raccolta da TED (max 5, solo Italia) e 1 feed RSS
+#   - 1 sola pagina web per WebEvents (AI Week)
+#   - Classificazione con Gemini Flash
+#   - Arricchimento date
+#   - Filtro eventi scaduti
+#   - Generazione report HTML
+#
+# NOTA: --no-resume è importante per evitare di caricare cache di
+# run precedenti con scope più ampio.
+# ===========================================================================
+
+[gemini]
+model = "gemini-3-flash-preview"
+
+[classification]
+# Soglia più bassa per vedere più risultati nel test
+relevance_threshold = 4
+
+[scope]
+lookback_days = 3
+max_results = 5          # massimo 5 risultati per collector
+cpv_codes = ["72"]       # solo IT services
+countries = ["IT"]       # solo Italia
+
+[collectors]
+ted        = true
+anac       = false       # disabilitato (lento, non necessario per test)
+events     = true
+web_events = true        # testa anche il crawling web (1 sola pagina)
+
+[events]
+feeds = [
+    "https://www.forumpa.it/feed/",
+]
+
+# Una sola seed page per testare il crawling a due fasi
+web_pages = [
+    "https://www.aiweek.it/",
+]
+
+[company]
+profile = """
+Siamo un'azienda IT medio-grande che opera in Italia e nell'area EMEA. \
+Le nostre competenze principali sono: SAP, Data Engineering, AI/ML e \
+Cloud Infrastructure (AWS, Azure, Google Cloud).
+"""
+
+[email]
+from = ""
+to   = ""

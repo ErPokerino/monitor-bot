@@ -1,0 +1,106 @@
+# ===========================================================================
+# Tender & Event Monitor – MODALITÀ ITALIA
+# ===========================================================================
+# Perimetro esclusivamente italiano: bandi nazionali (TED IT, ANAC),
+# bandi regionali (portali Regioni), eventi IT in Italia.
+#
+# Lancio:
+#   uv run monitor-bot --italia --no-resume
+#
+# Rispetto alla configurazione standard (EMEA):
+#   - TED filtrato solo su Italia
+#   - ANAC attivo (bandi italiani)
+#   - Bandi regionali attivi (Lombardia, Lazio, Emilia-Romagna, ecc.)
+#   - Eventi solo italiani (ForumPA, AgID, AI Week, vendor events IT)
+#   - Profilo azienda focalizzato su Italia
+# ===========================================================================
+
+[gemini]
+model = "gemini-3-flash-preview"
+
+[classification]
+relevance_threshold = 6
+
+# ---------------------------------------------------------------------------
+# Scope – solo Italia
+# ---------------------------------------------------------------------------
+[scope]
+lookback_days = 7
+max_results = 0
+cpv_codes = ["72", "48", "62", "64.2"]
+countries = ["IT"]
+
+# ---------------------------------------------------------------------------
+# Collectors
+# ---------------------------------------------------------------------------
+[collectors]
+ted          = true    # TED filtrato su Italia
+anac         = true    # ANAC Open Data – bandi nazionali italiani
+events       = true    # Feed RSS italiani
+web_events   = true    # Eventi IT in Italia (pagine web)
+web_tenders  = true    # Bandi regionali italiani (portali Regioni)
+
+# ---------------------------------------------------------------------------
+# Feed RSS – fonti italiane
+# ---------------------------------------------------------------------------
+[events]
+feeds = [
+    "https://www.forumpa.it/feed/",
+    "https://www.agid.gov.it/it/rss.xml",
+    "https://innovazione.gov.it/feed.xml",
+]
+
+# Pagine web eventi IT in Italia
+web_pages = [
+    "https://www.aiweek.it/",
+    "https://cloud.google.com/events?hl=it",
+    "https://aitour.microsoft.com/",
+]
+
+# ---------------------------------------------------------------------------
+# Bandi regionali – portali delle Regioni italiane
+# ---------------------------------------------------------------------------
+# Le pagine sono seed: il collector scopre i link ai singoli bandi
+# e poi estrae i dettagli da ogni pagina bando.
+[regional_tenders]
+web_pages = [
+    # Lombardia – sezione Innovazione e Ricerca
+    "https://www.bandi.regione.lombardia.it/servizi/servizio/catalogo/ricerca-innovazione",
+    # Lazio – sezione Innovazione
+    "https://www.regione.lazio.it/cittadini/attivita-produttive-e-commercio",
+    # Emilia-Romagna – bandi imprese e innovazione
+    "https://imprese.regione.emilia-romagna.it/Finanziamenti/finanziamenti-in-corso",
+    # Piemonte – bandi innovazione
+    "https://bfrancesi.regione.piemonte.it/bandi-piemonte",
+    # Veneto – bandi POR FESR e innovazione
+    "https://www.regione.veneto.it/web/programmi-comunitari/fesr-2021-2027",
+    # Italia – bandi PNRR e innovazione (portale nazionale)
+    "https://www.italiadomani.gov.it/content/sogei-ng/it/it/Avvisi.html",
+]
+
+# ---------------------------------------------------------------------------
+# Profilo azienda – focalizzato su Italia
+# ---------------------------------------------------------------------------
+[company]
+profile = """
+Siamo un'azienda IT medio-grande che opera principalmente in Italia. \
+Le nostre competenze principali sono:
+
+1. SAP: Implementazione, migrazione (S/4HANA), integrazione e supporto \
+   di ecosistemi SAP inclusi SAP BTP, SAP Analytics Cloud e sviluppo ABAP.
+2. Data Engineering: Piattaforme dati, pipeline ETL/ELT, data lake, \
+   data warehouse (Snowflake, Databricks, BigQuery) e soluzioni BI.
+3. AI / Machine Learning: Modelli ML, NLP, computer vision, MLOps, \
+   applicazioni di AI Generativa per casi d'uso enterprise.
+4. Cloud Infrastructure: Architettura cloud, migrazione e servizi gestiti \
+   su AWS, Azure e Google Cloud. DevOps, Kubernetes, IaC (Terraform).
+
+Lavoriamo tipicamente su progetti tra 50.000 EUR e 50.000.000 EUR, \
+con pubbliche amministrazioni, grandi imprese, utility e regioni italiane. \
+Abbiamo le certificazioni necessarie per la partecipazione a gare pubbliche \
+in Italia (ANAC, MePA, CONSIP).
+"""
+
+[email]
+from = ""
+to   = ""

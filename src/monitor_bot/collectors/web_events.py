@@ -387,7 +387,8 @@ class WebEventsCollector(BaseCollector):
 
             description = evt.get("description", "").strip()
             location = evt.get("location", "") or ""
-            event_url = evt.get("url") or page_url
+            gemini_url = (evt.get("url") or "").strip()
+            event_url = gemini_url if gemini_url.startswith("http") else page_url
 
             deadline = self._parse_date(evt.get("event_date"))
 

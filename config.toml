@@ -1,44 +1,42 @@
 # ===========================================================================
-# Tender & Event Monitor – Configuration
+# Tender & Event Monitor – Configurazione principale
 # ===========================================================================
-# This file controls the search scope, classification parameters, company
-# profile, event feeds, and email delivery. Secrets (API keys, SMTP
-# passwords) stay in .env.
+# Questo file controlla lo scope di ricerca, parametri di classificazione,
+# profilo azienda, fonti eventi/bandi, e invio email.
+# I segreti (API key, credenziali SMTP) restano nel file .env.
 #
-# Use --config to point to a different file:
-#   uv run monitor-bot --config config.test.toml
+# Uso:
+#   uv run monitor-bot                  # configurazione standard (EMEA)
+#   uv run monitor-bot --config X.toml  # configurazione custom
+#   uv run monitor-bot --test           # config.test.toml (test rapido)
+#   uv run monitor-bot --italia         # config.italia.toml (solo Italia)
 # ===========================================================================
 
 [gemini]
-# Model to use for classification. Options:
-#   gemini-3-flash-preview  (fast, cheaper)
-#   gemini-3-pro-preview    (more accurate, slower)
+# Modello Gemini da usare per classificazione e analisi.
+# Opzioni: gemini-3-flash-preview (veloce), gemini-3-pro-preview (accurato)
 model = "gemini-3-flash-preview"
 
 [classification]
-# Minimum relevance score (1-10) to include in the report
+# Punteggio minimo di rilevanza (1-10) per includere nel report
 relevance_threshold = 6
 
-# ---------------------------------------------------------------------------
-# Search scope
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# SCOPE DI RICERCA
+# ===========================================================================
 [scope]
-# How many days back to search
-lookback_days = 7
+lookback_days = 7        # Quanti giorni indietro cercare
+max_results   = 0        # Max risultati per collector (0 = illimitato)
 
-# Max results per collector (0 = unlimited).
-# Set to a low number (e.g. 20) for faster runs.
-max_results = 0
-
-# CPV code prefixes to filter for. These cover IT services:
-#   72   = IT services (consulting, development, support)
-#   48   = Software packages and information systems
-#   62   = Computer-related services (legacy codes)
-#   64.2 = Telecommunications services
+# Codici CPV da filtrare (servizi IT):
+#   72   = Servizi IT (consulenza, sviluppo, supporto)
+#   48   = Pacchetti software e sistemi informativi
+#   62   = Servizi informatici (codici legacy)
+#   64.2 = Servizi di telecomunicazione
 cpv_codes = ["72", "48", "62", "64.2"]
 
-# Country codes (ISO 3166-1 alpha-2) for TED geographic filtering.
-# Default: full EMEA region.
+# Paesi (ISO 3166-1 alpha-2) per filtro geografico TED.
+# Default: area EMEA completa.
 countries = [
     # EU / EEA
     "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR",
@@ -46,48 +44,103 @@ countries = [
     "PL", "PT", "RO", "SK", "SI", "ES", "SE",
     # EEA non-EU
     "IS", "LI", "NO",
-    # Other EMEA
+    # Altro EMEA
     "CH", "GB", "TR", "IL", "AE", "SA", "ZA",
 ]
 
-# ---------------------------------------------------------------------------
-# Collectors – enable/disable individual data sources
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# COLLECTORS – attiva/disattiva le fonti dati
+# ===========================================================================
 [collectors]
-ted        = true   # TED (Tenders Electronic Daily) – EU-wide
-anac       = true   # ANAC Open Data – Italian public contracts
-events     = true   # RSS/Atom feeds – events and news
-web_events = true   # Web page scraping – event pages (AI Week, big vendor events, etc.)
+ted         = true    # TED (Tenders Electronic Daily) – bandi UE
+anac        = true    # ANAC Open Data – bandi pubblici italiani
+events      = true    # Feed RSS/Atom – eventi e notizie
+web_events  = true    # Scraping pagine web – eventi (AI Week, vendor, ecc.)
+web_tenders = false   # Bandi regionali italiani (attivare in modalità Italia)
+web_search  = true    # Ricerca web Google per scoprire nuovi bandi/eventi
 
-# ---------------------------------------------------------------------------
-# Event feeds – RSS/Atom URLs to monitor for events
-# ---------------------------------------------------------------------------
-# Leave empty [] to use the built-in defaults (ForumPA, AgID, EU Digital, SAP).
-# Or specify your own list:
+# ===========================================================================
+# FONTI EVENTI
+# ===========================================================================
+# Per aggiungere un nuovo feed RSS: inserire l'URL del feed nella lista feeds.
+# Per aggiungere una pagina web (non RSS): inserirla nella lista web_pages.
+# Il bot scopre automaticamente i link agli eventi dalla pagina.
+
 [events]
+
+# --- Feed RSS/Atom ---
+# Fonti di notizie e annunci su PA, innovazione, tecnologia.
 feeds = [
+    # PA e innovazione pubblica italiana
     "https://www.forumpa.it/feed/",
     "https://www.agid.gov.it/it/rss.xml",
     "https://innovazione.gov.it/feed.xml",
+
+    # UE – strategia digitale
     "https://digital-strategy.ec.europa.eu/en/rss.xml",
+
+    # SAP Community
     "https://community.sap.com/khhcw49343/rss/board?board.id=technology-blog-sap",
+
+    # Per aggiungere: copiare l'URL del feed RSS e incollare qui
+    # "https://esempio.it/feed/",
 ]
 
-# Web pages to scrape for events (non-RSS).
-# These act as **seed pages**: the collector crawls them to discover links to
-# specific event pages, then fetches each event page for details (two-phase).
+# --- Pagine web eventi (seed pages) ---
+# Il bot visita queste pagine, trova i link agli eventi specifici
+# e li analizza con Gemini (crawling a due fasi).
 web_pages = [
+    # Conferenze e summit IT
     "https://www.aiweek.it/",
+
+    # Google Cloud – eventi Italia e globali
     "https://cloud.google.com/events?hl=it",
+
+    # AWS – eventi globali
     "https://aws.amazon.com/events/",
+
+    # Microsoft – AI Tour e Azure events
     "https://aitour.microsoft.com/",
     "https://azure.microsoft.com/en-us/community/events/",
+
+    # Databricks – Data+AI Summit
     "https://www.databricks.com/dataaisummit/",
+
+    # Per aggiungere: incollare l'URL della pagina eventi qui
+    # "https://esempio.com/events/",
 ]
 
-# ---------------------------------------------------------------------------
-# Company profile – used as context for Gemini classification
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# RICERCHE WEB
+# ===========================================================================
+# Query di ricerca Google per scoprire nuovi bandi/eventi non coperti
+# dai siti configurati sopra. Il bot usa Gemini con Google Search
+# grounding per eseguire le ricerche e analizzare i risultati.
+#
+# Suggerimenti per query efficaci:
+#   - Includere l'anno corrente per risultati recenti
+#   - Specificare il settore (IT, digitale, innovazione)
+#   - Specificare il territorio se necessario (Italia, EMEA)
+[web_search]
+queries = [
+    # Bandi e gare IT
+    "bandi gare appalti servizi IT digitale Europa 2026",
+    "bandi innovazione digitale PNRR 2026",
+    "public procurement IT services tenders Europe 2026",
+
+    # Eventi e conferenze
+    "eventi conferenze AI machine learning Europa 2026",
+    "cloud computing summit conference Europe 2026",
+    "SAP events conference 2026",
+
+    # Per aggiungere: scrivere una query e incollarla qui
+    # "bandi SAP pubblica amministrazione 2026",
+]
+max_results_per_query = 5    # Risultati massimi per ogni query
+
+# ===========================================================================
+# PROFILO AZIENDA – contesto per la classificazione Gemini
+# ===========================================================================
 [company]
 profile = """
 We are a mid-to-large IT consulting and services company operating in Italy \
@@ -110,11 +163,11 @@ have the certifications and track record required for public procurement in \
 Italy and the EU.
 """
 
-# ---------------------------------------------------------------------------
-# Email delivery (optional)
-# ---------------------------------------------------------------------------
-# SMTP credentials (host, user, password) are in .env.
-# Only configure addresses here.
+# ===========================================================================
+# EMAIL (opzionale)
+# ===========================================================================
+# Le credenziali SMTP (host, user, password) sono nel file .env.
+# Qui si configurano solo gli indirizzi mittente e destinatario.
 [email]
 from = ""
 to   = ""

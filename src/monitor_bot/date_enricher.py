@@ -21,6 +21,10 @@ from google.genai import types
 from monitor_bot.config import Settings
 from monitor_bot.models import ClassifiedOpportunity
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from monitor_bot.progress import ProgressTracker
+
 logger = logging.getLogger(__name__)
 
 _HEADERS = {
@@ -63,6 +67,7 @@ Se NON trovi alcuna data rilevante, restituisci:
 async def enrich_missing_dates(
     classified: list[ClassifiedOpportunity],
     settings: Settings,
+    progress: ProgressTracker | None = None,
 ) -> int:
     """Fetch source pages for items missing dates and extract via Gemini.
 
@@ -113,6 +118,9 @@ async def enrich_missing_dates(
                     idx + 1, len(missing), url[:80],
                     exc_info=True,
                 )
+
+            if progress:
+                progress.update(idx + 1, len(missing), item.opportunity.title[:40])
 
             if idx < len(missing) - 1:
                 await asyncio.sleep(_RATE_LIMIT_DELAY)

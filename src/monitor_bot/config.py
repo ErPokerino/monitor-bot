@@ -85,6 +85,7 @@ class Settings:
         self.enable_events: bool = collectors.get("events", True)
         self.enable_web_events: bool = collectors.get("web_events", True)
         self.enable_web_tenders: bool = collectors.get("web_tenders", False)
+        self.enable_web_search: bool = collectors.get("web_search", False)
 
         # --- Events ---
         events = self._cfg.get("events", {})
@@ -94,6 +95,11 @@ class Settings:
         # --- Regional tenders ---
         regional = self._cfg.get("regional_tenders", {})
         self.web_tender_pages: list[str] = regional.get("web_pages", [])
+
+        # --- Web search ---
+        web_search = self._cfg.get("web_search", {})
+        self.web_search_queries: list[str] = web_search.get("queries", [])
+        self.web_search_max_per_query: int = web_search.get("max_results_per_query", 5)
 
         # --- Company profile ---
         company = self._cfg.get("company", {})
@@ -135,6 +141,8 @@ class Settings:
             collectors.append("WebEvents")
         if self.enable_web_tenders:
             collectors.append("WebTenders")
+        if self.enable_web_search:
+            collectors.append("WebSearch")
 
         parts = [
             f"collectors={'+'.join(collectors) or 'none'}",

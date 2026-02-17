@@ -103,7 +103,12 @@ bando. Restituisci un singolo oggetto JSON con questi campi:
 - "estimated_value" (numero o null): dotazione finanziaria in EUR, se indicata
 - "requirements" (lista di stringhe): requisiti principali per partecipare \
   (max 5 punti)
-- "url" (stringa o null): URL specifico del bando, se diverso dalla pagina
+- "url" (stringa): URL DIRETTO alla pagina del bando specifico. \
+  IMPORTANTE: Se la pagina è un elenco/catalogo con più bandi, devi \
+  restituire l'URL della pagina di DETTAGLIO del bando, NON l'URL \
+  della pagina di elenco. Cerca tra i link forniti quello che punta \
+  alla scheda specifica del bando estratto. L'URL deve permettere \
+  all'utente di arrivare direttamente alla pagina del bando.
 
 Se la pagina NON contiene un bando pubblico rilevante, restituisci:
 {"title": null}
@@ -315,12 +320,16 @@ class WebTendersCollector(BaseCollector):
         resp = await self._http_client.get(url)
         resp.raise_for_status()
 
-        text = self._extract_text(resp.text)
+        html = resp.text
+        text = self._extract_text(html)
         if not text or len(text.strip()) < 50:
             logger.debug("WebTenders: page %s yielded too little text", url)
             return None
 
-        tender_data = await self._call_gemini_extraction(text, url)
+        # Also extract links so Gemini can identify the specific tender URL
+        page_links = self._extract_links(html, url)
+
+        tender_data = await self._call_gemini_extraction(text, url, page_links)
         if not tender_data or not tender_data.get("title"):
             return None
 
@@ -345,11 +354,22 @@ class WebTendersCollector(BaseCollector):
 
     async def _call_gemini_extraction(
         self, page_text: str, source_url: str,
+        page_links: list[str] | None = None,
     ) -> dict | None:
         """Send page text to Gemini and get structured tender data back."""
+        links_section = ""
+        if page_links:
+            # Include up to 80 links so Gemini can find specific tender URLs
+            relevant_links = page_links[:80]
+            links_section = (
+                "\n\nLink trovati nella pagina (usa questi per il campo 'url'):\n"
+                + "\n".join(f"- {lnk}" for lnk in relevant_links)
+            )
+
         user_prompt = (
             f"URL della pagina: {source_url}\n\n"
             f"Testo della pagina:\n{page_text}"
+            f"{links_section}"
         )
 
         try:
@@ -388,7 +408,13 @@ class WebTendersCollector(BaseCollector):
 
         description = (data.get("description") or "").strip()
         authority = (data.get("contracting_authority") or self._domain_name(page_url)).strip()
-        tender_url = data.get("url") or page_url
+
+        # Prefer the specific URL returned by Gemini over the page URL
+        gemini_url = (data.get("url") or "").strip()
+        if gemini_url and gemini_url.startswith("http"):
+            tender_url = gemini_url
+        else:
+            tender_url = page_url
         deadline = self._parse_date(data.get("deadline"))
         value = data.get("estimated_value")
 

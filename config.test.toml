@@ -11,6 +11,7 @@
 # Cosa testa:
 #   - Raccolta da TED (max 5, solo Italia) e 1 feed RSS
 #   - 1 sola pagina web per WebEvents (AI Week)
+#   - 1 sola query di ricerca web
 #   - Classificazione con Gemini Flash
 #   - Arricchimento date
 #   - Filtro eventi scaduti
@@ -27,18 +28,29 @@ model = "gemini-3-flash-preview"
 # Soglia più bassa per vedere più risultati nel test
 relevance_threshold = 4
 
+# ===========================================================================
+# SCOPE – ridotto per test rapido
+# ===========================================================================
 [scope]
 lookback_days = 3
-max_results = 5          # massimo 5 risultati per collector
-cpv_codes = ["72"]       # solo IT services
-countries = ["IT"]       # solo Italia
+max_results   = 5       # massimo 5 risultati per collector
+cpv_codes     = ["72"]  # solo IT services
+countries     = ["IT"]  # solo Italia
 
+# ===========================================================================
+# COLLECTORS – subset minimo
+# ===========================================================================
 [collectors]
-ted        = true
-anac       = false       # disabilitato (lento, non necessario per test)
-events     = true
-web_events = true        # testa anche il crawling web (1 sola pagina)
+ted         = true
+anac        = false      # disabilitato (lento, non necessario per test)
+events      = true
+web_events  = true       # testa anche il crawling web (1 sola pagina)
+web_tenders = false      # disabilitato per test rapido
+web_search  = true       # testa la ricerca web (1 sola query)
 
+# ===========================================================================
+# FONTI EVENTI – minime per test
+# ===========================================================================
 [events]
 feeds = [
     "https://www.forumpa.it/feed/",
@@ -49,6 +61,18 @@ web_pages = [
     "https://www.aiweek.it/",
 ]
 
+# ===========================================================================
+# RICERCHE WEB – minime per test
+# ===========================================================================
+[web_search]
+queries = [
+    "bandi innovazione digitale Italia 2026",
+]
+max_results_per_query = 3    # pochi risultati per test rapido
+
+# ===========================================================================
+# PROFILO AZIENDA – sintetico per test
+# ===========================================================================
 [company]
 profile = """
 Siamo un'azienda IT medio-grande che opera in Italia e nell'area EMEA. \

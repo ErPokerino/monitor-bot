@@ -4,7 +4,7 @@
 
 ### 1.1 Obiettivo
 
-Monitor Bot è un sistema di monitoraggio automatico pensato per aziende IT che partecipano a gare pubbliche e vogliono restare aggiornate su bandi, concorsi ed eventi di settore. L’obiettivo è ridurre il lavoro manuale di ricerca e screening, fornendo un report periodico con le opportunità più rilevanti.
+Monitor Bot è un sistema di monitoraggio automatico pensato per aziende IT che partecipano a gare pubbliche e vogliono restare aggiornate su bandi, concorsi ed eventi di settore. L'obiettivo è ridurre il lavoro manuale di ricerca e screening, fornendo un report periodico con le opportunità più rilevanti.
 
 ### 1.2 Utenti tipici
 
@@ -12,9 +12,9 @@ Monitor Bot è un sistema di monitoraggio automatico pensato per aziende IT che 
 - **Marketing e comunicazione**: scoprire eventi (conferenze, summit, webinar) per networking e visibilità
 - **Management**: avere una visione aggregata delle opportunità IT sul mercato
 
-### 1.3 Contesto d’uso
+### 1.3 Contesto d'uso
 
-Il sistema viene eseguito periodicamente (es. schedulato con cron/Task Scheduler) e produce un report HTML. L’utente può consultare il report localmente o riceverlo via email.
+Il sistema viene eseguito periodicamente (es. schedulato con cron/Task Scheduler) e produce un report HTML. L'utente può consultare il report localmente o riceverlo via email.
 
 ---
 
@@ -22,7 +22,7 @@ Il sistema viene eseguito periodicamente (es. schedulato con cron/Task Scheduler
 
 ### 2.1 Raccolta dati (Collect)
 
-Il sistema raccoglie opportunità da cinque tipi di fonti:
+Il sistema raccoglie opportunità da sei tipi di fonti:
 
 | Fonte | Tipo | Descrizione |
 |-------|------|-------------|
@@ -31,10 +31,11 @@ Il sistema raccoglie opportunità da cinque tipi di fonti:
 | **Events (RSS)** | Eventi | Feed RSS/Atom: ForumPA, AgID, Innovazione Italia, EU Digital Strategy, SAP Community |
 | **WebEvents** | Eventi | Pagine HTML: AI Week, Google Cloud Events, AWS Events, Azure, Databricks |
 | **WebTenders** | Bandi regionali | Portali bandi delle Regioni italiane (Lombardia, Lazio, Emilia-Romagna, ecc.) e Italia Domani (PNRR) – scraping + Gemini |
+| **WebSearch** | Bandi/Eventi | Ricerca Google tramite Gemini con grounding – scopre nuovi bandi/eventi non coperti dalle fonti configurate |
 
 ### 2.2 Tipi di opportunità
 
-- **Bando**: gara d’appalto per servizi/prodotti IT
+- **Bando**: gara d'appalto per servizi/prodotti IT
 - **Concorso**: concorso di progettazione o simile
 - **Evento**: conferenza, summit, workshop, webinar, hackathon
 
@@ -51,16 +52,27 @@ Ogni opportunità viene analizzata da Google Gemini con un **profilo aziendale**
 ### 2.4 Estrazione date
 
 - **Bandi/Concorsi**: scadenza per la presentazione delle offerte (da API o da pagina sorgente)
-- **Eventi**: data dell’evento (da descrizione RSS o da pagina web)
+- **Eventi**: data dell'evento (da descrizione RSS o da pagina web)
 
 Se la fonte non fornisce la data, il sistema può recuperarla dalla pagina web e usare Gemini per estrarla.
 
 ### 2.5 Deduplicazione
 
 - **URL/titolo**: rimozione di duplicati esatti
-- **Eventi**: rimozione di articoli diversi sullo stesso evento (stessa data, stessa fonte)
+- **Eventi**: deduplicazione intelligente con fuzzy matching sui titoli. Eventi con la stessa data vengono confrontati normalizzando i titoli (rimozione anno, edizione, punteggiatura) e verificando sovrapposizione di parole chiave. Ad esempio, "AI WEEK 2026" e "AI WEEK - 7th Edition" vengono riconosciuti come lo stesso evento. Viene mantenuto quello con il punteggio più alto.
 
-### 2.6 Report
+### 2.6 Ricerca web automatica
+
+Il sistema può eseguire ricerche Google configurabili per scoprire nuovi bandi/eventi che non sono coperti dai siti/feed configurati. La funzione utilizza Gemini con Google Search grounding per:
+
+1. Eseguire le query di ricerca configurate
+2. Analizzare i risultati e filtrare quelli rilevanti
+3. Visitare le pagine trovate ed estrarre informazioni strutturate
+4. Includere le opportunità scoperte nel report
+
+Le query sono configurabili nel file `config.toml` (sezione `[web_search]`).
+
+### 2.7 Report
 
 Il report HTML include:
 
@@ -68,20 +80,21 @@ Il report HTML include:
 - Filtri per tipo: Tutti, Bandi, Concorsi, Eventi
 - Filtri per data: Tutte, Prossimi 7/30/90 gg, Personalizzato (con date picker)
 - Filtro per fonte/ente (dropdown con tutte le fonti presenti)
+- Filtro per categoria: SAP, Cloud, AI, Data, Other (con contatori)
 - Ripartizione per categoria
 - Card per ogni opportunità con: titolo, data/scadenza, ente, valore, motivazione AI, link alla fonte
 - Tempo di esecuzione nel footer
 
 ---
 
-## 3. Casi d’uso
+## 3. Casi d'uso
 
 ### UC1 – Report periodico
 
 **Attore**: Utente schedulato  
 **Precondizione**: Configurazione valida, GEMINI_API_KEY impostata  
 **Flusso**:
-1. L’utente esegue `uv run monitor-bot` (o via scheduler)
+1. L'utente esegue `uv run monitor-bot` (o via scheduler)
 2. Il sistema raccoglie da tutte le fonti abilitate
 3. Classifica le opportunità con Gemini
 4. Genera il report HTML in `output/`
@@ -94,9 +107,9 @@ Il report HTML include:
 **Attore**: Utente  
 **Precondizione**: Cache di run precedenti presente  
 **Flusso**:
-1. L’utente esegue `uv run monitor-bot --no-resume`
+1. L'utente esegue `uv run monitor-bot --no-resume`
 2. Il sistema ignora la cache e raccoglie tutto da zero
-3. Utile dopo modifiche a fonti (es. nuove web_pages) o per forzare un refresh completo
+3. Utile dopo modifiche a fonti (es. nuove web_pages, nuove query web search) o per forzare un refresh completo
 
 ### UC3 – Test rapido della pipeline
 
@@ -104,7 +117,7 @@ Il report HTML include:
 **Precondizione**: Configurazione valida, GEMINI_API_KEY impostata  
 **Flusso**:
 1. L'utente esegue `uv run monitor-bot --test --no-resume`
-2. Il sistema carica `config.test.toml` (scope ridotto: solo Italia, max 5 risultati/collector, 1 feed RSS, 1 pagina web)
+2. Il sistema carica `config.test.toml` (scope ridotto: solo Italia, max 5 risultati/collector, 1 feed RSS, 1 pagina web, 1 query web search)
 3. Esegue la pipeline completa end-to-end: collect → dedup → filter → classify → enrich → report
 4. Genera il report in `output/`
 
@@ -120,7 +133,8 @@ Il report HTML include:
 2. Il sistema carica `config.italia.toml` (perimetro italiano)
 3. Raccoglie bandi da TED (solo IT), ANAC, portali regionali (Lombardia, Lazio, Emilia-Romagna, Piemonte, Veneto, Italia Domani)
 4. Raccoglie eventi da feed RSS italiani e pagine web (AI Week, Google Cloud IT, Microsoft AI Tour)
-5. Classifica, arricchisce date e genera report
+5. Esegue ricerche web con query focalizzate su Italia
+6. Classifica, arricchisce date e genera report
 
 **Postcondizione**: Report con sole opportunità italiane (bandi nazionali, regionali, eventi IT in Italia)
 
@@ -138,14 +152,15 @@ Il report HTML include:
 **Flusso**:
 1. Per feed RSS: aggiunge URL in `[events].feeds`
 2. Per pagine web: aggiunge URL in `[events].web_pages`
-3. Rilancia con `--no-resume` per includere le nuove fonti
+3. Per ricerche web: aggiunge query in `[web_search].queries`
+4. Rilancia con `--no-resume` per includere le nuove fonti
 
 ### UC7 – Ripresa dopo interruzione
 
 **Attore**: Sistema  
 **Precondizione**: Run precedente interrotto (Ctrl+C, errore di rete, quota Gemini)  
 **Flusso**:
-1. L’utente esegue `uv run monitor-bot` senza `--no-resume`
+1. L'utente esegue `uv run monitor-bot` senza `--no-resume`
 2. Il sistema carica i dati dalla cache
 3. Riprende dalla classificazione (o dalla fase successiva)
 4. Evita di rifare la raccolta e le classificazioni già completate
@@ -164,7 +179,18 @@ Il report HTML include:
 | `cpv_codes` | config.toml | Codici CPV per filtrare bandi IT | 72, 48, 62, 64.2 |
 | `countries` | config.toml | Paesi per TED | EMEA |
 
-### 4.2 Modalità test
+### 4.2 Configurazione fonti
+
+I file di configurazione sono strutturati con commenti guida che spiegano ogni sezione e come aggiungere nuove fonti. Le fonti sono raggruppate per tipologia:
+
+| Sezione | Descrizione | Come aggiungere |
+|---------|-------------|-----------------|
+| `[events].feeds` | Feed RSS/Atom | Incollare l'URL del feed |
+| `[events].web_pages` | Pagine web eventi (seed pages) | Incollare l'URL della pagina |
+| `[regional_tenders].web_pages` | Portali bandi regionali | Incollare l'URL del portale |
+| `[web_search].queries` | Query di ricerca Google | Scrivere una query efficace |
+
+### 4.3 Modalità test
 
 Il file `config.test.toml` contiene una configurazione ridotta per test rapidi (~1-2 min):
 
@@ -180,16 +206,17 @@ uv run monitor-bot --test --no-resume
 | ANAC | Attivo | Disattivato |
 | Feed RSS | 5 | 1 (ForumPA) |
 | Seed pages WebEvents | 6 | 1 (AI Week) |
+| Query WebSearch | 6 | 1 (3 risultati max) |
 | Soglia rilevanza | 6 | 4 |
 
 `--no-resume` è necessario per evitare di riprendere dalla cache di run precedenti con scope più ampio.
 
-### 4.3 Modelli Gemini
+### 4.4 Modelli Gemini
 
 - `gemini-3-flash-preview`: più veloce, costo inferiore
 - `gemini-3-pro-preview`: più accurato, più lento
 
-### 4.4 Abilitazione/disabilitazione fonti
+### 4.5 Abilitazione/disabilitazione fonti
 
 In `config.toml`, sezione `[collectors]`:
 
@@ -198,6 +225,7 @@ In `config.toml`, sezione `[collectors]`:
 - `events = true/false`
 - `web_events = true/false`
 - `web_tenders = true/false` (bandi regionali italiani – default: disattivato)
+- `web_search = true/false` (ricerca web Google – default: attivato)
 
 ---
 
@@ -208,7 +236,7 @@ In `config.toml`, sezione `[collectors]`:
 - **Lingua**: italiano
 - **Formato**: HTML standalone con CSS inline
 - **Posizione**: `output/report_YYYYMMDD_HHMMSS.html`
-- **Contenuto**: header, statistiche, filtri, card opportunità, footer
+- **Contenuto**: header, statistiche, filtri (tipo, data, fonte/ente), card opportunità, footer
 
 ### 5.2 Email
 
@@ -229,8 +257,9 @@ Se configurati SMTP e indirizzi in `config.toml`:
 
 - **Gemini API**: richiede chiave valida e quota sufficiente
 - **Rate limit**: ritardi tra richieste per rispettare API esterne
-- **Pagine SPA**: siti che caricano contenuti via JavaScript non sono analizzabili (es. TED web); per TED si usa l’API
+- **Pagine SPA**: siti che caricano contenuti via JavaScript non sono analizzabili (es. TED web); per TED si usa l'API
 - **Lingua**: classificazione e report sono in italiano; le fonti possono essere multilingua
+- **Google Search grounding**: richiede supporto nel modello Gemini e potrebbe avere limiti di quota
 
 ---
 
@@ -243,3 +272,5 @@ Se configurati SMTP e indirizzi in `config.toml`:
 | **CPV** | Common Procurement Vocabulary – codici classificazione appalti |
 | **RSS** | Really Simple Syndication – formato per feed di notizie |
 | **Resume** | Ripresa da checkpoint salvato |
+| **Seed page** | Pagina "seme" che il bot visita per scoprire link a pagine specifiche di eventi o bandi |
+| **WebSearch grounding** | Capacità di Gemini di accedere a Google Search per risposte basate su informazioni aggiornate |

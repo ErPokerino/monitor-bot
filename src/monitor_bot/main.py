@@ -14,6 +14,7 @@ from monitor_bot.collectors.anac import ANACCollector
 from monitor_bot.collectors.events import EventsCollector
 from monitor_bot.collectors.ted import TEDCollector
 from monitor_bot.collectors.web_events import WebEventsCollector
+from monitor_bot.collectors.web_search import WebSearchCollector
 from monitor_bot.collectors.web_tenders import WebTendersCollector
 from monitor_bot.config import DEFAULT_CONFIG_PATH, ITALIA_CONFIG_PATH, TEST_CONFIG_PATH, Settings
 from monitor_bot.date_enricher import enrich_missing_dates
@@ -109,6 +110,9 @@ async def _collect(settings: Settings, progress: ProgressTracker) -> list[Opport
     if settings.enable_web_tenders:
         tasks.append(WebTendersCollector(settings).collect())
         collector_names.append("WebTenders")
+    if settings.enable_web_search:
+        tasks.append(WebSearchCollector(settings).collect())
+        collector_names.append("WebSearch")
 
     if not tasks:
         logger.warning("All collectors are disabled – nothing to collect")
@@ -129,7 +133,7 @@ async def _collect(settings: Settings, progress: ProgressTracker) -> list[Opport
                 source_counts.append(f"{src}: {len(result)}")
 
     summary = ", ".join(source_counts) if source_counts else "none"
-    progress.end_stage(1, f"{len(opportunities)} total ({summary})")
+    progress.end_stage(1, f"{len(opportunities)} raccolti ({summary})")
     return opportunities
 
 
@@ -158,7 +162,7 @@ def _deduplicate(
         unique.append(opp)
 
     removed = len(opportunities) - len(unique)
-    progress.end_stage(2, f"{len(unique)} unique, {removed} duplicates removed")
+    progress.end_stage(2, f"{len(unique)} unici, {removed} duplicati rimossi")
     return unique
 
 
@@ -173,7 +177,7 @@ def _filter_future(
     - Evento: always kept – the events collector already applies a lookback
       filter, and event articles are inherently forward-looking announcements.
     """
-    progress.begin_stage(3, "filtering past items")
+    progress.begin_stage(3, "rimozione bandi/eventi scaduti")
     today = date.today()
     future: list[Opportunity] = []
 
@@ -187,7 +191,7 @@ def _filter_future(
                 future.append(opp)
 
     removed = len(opportunities) - len(future)
-    progress.end_stage(3, f"{len(future)} current, {removed} expired items removed")
+    progress.end_stage(3, f"{len(future)} attivi, {removed} scaduti rimossi")
     return future
 
 
@@ -219,16 +223,60 @@ def _filter_past_after_enrichment(
     return kept
 
 
+def _normalise_event_title(title: str) -> str:
+    """Reduce an event title to key words for fuzzy matching.
+
+    Strips common noise (edition numbers, year, punctuation, case) so that
+    "AI WEEK 2026" and "AI WEEK - 7th Edition" compare as similar.
+    """
+    import re as _re
+    t = title.strip().lower()
+    # Remove year patterns like "2025", "2026"
+    t = _re.sub(r"\b20\d{2}\b", "", t)
+    # Remove edition patterns like "7th", "7a", "VII", "edizione", "edition"
+    t = _re.sub(r"\b\d+(st|nd|rd|th|a|°)\b", "", t)
+    t = _re.sub(r"\b(edizione|edition|ed\.)\b", "", t, flags=_re.IGNORECASE)
+    # Remove Roman numerals standing alone
+    t = _re.sub(r"\b(i{1,3}|iv|vi{0,3}|ix|xi{0,3})\b", "", t)
+    # Remove punctuation and collapse whitespace
+    t = _re.sub(r"[^a-z0-9\s]", " ", t)
+    t = _re.sub(r"\s+", " ", t).strip()
+    return t
+
+
+def _titles_are_similar(a: str, b: str) -> bool:
+    """Check if two normalised titles are similar enough to be the same event."""
+    if not a or not b:
+        return False
+    # Exact match after normalisation
+    if a == b:
+        return True
+    # Substring containment (at least 10 chars to avoid false positives)
+    if len(a) > 8 and len(b) > 8:
+        if a in b or b in a:
+            return True
+    # Token overlap: if >=70% of the shorter title's tokens are in the longer one
+    tokens_a = set(a.split())
+    tokens_b = set(b.split())
+    if tokens_a and tokens_b:
+        shorter = tokens_a if len(tokens_a) <= len(tokens_b) else tokens_b
+        longer = tokens_b if len(tokens_a) <= len(tokens_b) else tokens_a
+        if len(shorter) >= 2:
+            overlap = len(shorter & longer) / len(shorter)
+            if overlap >= 0.7:
+                return True
+    return False
+
+
 def _dedup_events_by_date(classified: list[ClassifiedOpportunity]) -> list[ClassifiedOpportunity]:
     """Remove duplicate events that refer to the same underlying event.
 
-    Multiple RSS articles from the same source often announce the same event.
-    After date enrichment, we can detect these: if two events share the same
-    (deadline date, source feed) they're almost certainly about the same event.
-    We keep the one with the highest relevance score.
-
-    For events without a date, we also check if one title is a substring of
-    another (e.g. "FORUM PA 2026" appears in both titles).
+    Uses a multi-strategy approach:
+    1. Events with the same date are grouped together (regardless of source).
+       Within each date group, titles are compared with fuzzy matching to
+       detect duplicates like "AI WEEK 2026" vs "AI WEEK - 7th Edition".
+    2. Events without dates are checked via title similarity against all kept events.
+    The event with the highest relevance score is kept in each duplicate group.
     """
     events = [c for c in classified if c.opportunity.opportunity_type == OpportunityType.EVENTO]
     non_events = [c for c in classified if c.opportunity.opportunity_type != OpportunityType.EVENTO]
@@ -236,48 +284,57 @@ def _dedup_events_by_date(classified: list[ClassifiedOpportunity]) -> list[Class
     if len(events) <= 1:
         return classified
 
-    # Group events by (date, source_feed/authority)
     from collections import defaultdict
-    groups: dict[tuple, list[ClassifiedOpportunity]] = defaultdict(list)
+    date_groups: dict[str, list[ClassifiedOpportunity]] = defaultdict(list)
     no_date_events: list[ClassifiedOpportunity] = []
 
     for evt in events:
         dl = evt.opportunity.deadline
-        src = evt.opportunity.contracting_authority.strip().lower()
         if dl:
-            groups[(dl.isoformat(), src)].append(evt)
+            date_groups[dl.isoformat()].append(evt)
         else:
             no_date_events.append(evt)
 
     kept_events: list[ClassifiedOpportunity] = []
     removed = 0
 
-    for key, group in groups.items():
+    for date_key, group in date_groups.items():
         if len(group) == 1:
             kept_events.append(group[0])
-        else:
-            best = max(group, key=lambda c: c.score)
-            kept_events.append(best)
-            removed += len(group) - 1
+            continue
 
-    # For events without dates, check title-substring duplicates against kept events
-    kept_titles_lower = [e.opportunity.title.strip().lower() for e in kept_events]
-    for evt in no_date_events:
-        title_lower = evt.opportunity.title.strip().lower()
-        is_dup = False
-        for kept_title in kept_titles_lower:
-            if len(title_lower) > 10 and len(kept_title) > 10:
-                if title_lower in kept_title or kept_title in title_lower:
-                    is_dup = True
+        # Within this date group, cluster by title similarity
+        clusters: list[list[ClassifiedOpportunity]] = []
+        for evt in group:
+            norm = _normalise_event_title(evt.opportunity.title)
+            merged = False
+            for cluster in clusters:
+                representative_norm = _normalise_event_title(cluster[0].opportunity.title)
+                if _titles_are_similar(norm, representative_norm):
+                    cluster.append(evt)
+                    merged = True
                     break
+            if not merged:
+                clusters.append([evt])
+
+        for cluster in clusters:
+            best = max(cluster, key=lambda c: c.score)
+            kept_events.append(best)
+            removed += len(cluster) - 1
+
+    # For events without dates, check title similarity against all kept events
+    kept_norms = [_normalise_event_title(e.opportunity.title) for e in kept_events]
+    for evt in no_date_events:
+        norm = _normalise_event_title(evt.opportunity.title)
+        is_dup = any(_titles_are_similar(norm, kn) for kn in kept_norms)
         if is_dup:
             removed += 1
         else:
             kept_events.append(evt)
-            kept_titles_lower.append(title_lower)
+            kept_norms.append(norm)
 
     if removed:
-        logger.info("Event dedup: removed %d duplicate event(s) about the same event", removed)
+        logger.info("Event dedup: rimossi %d evento/i duplicato/i", removed)
 
     return non_events + kept_events
 
@@ -355,15 +412,15 @@ async def run(args: argparse.Namespace) -> None:
         cache.save_metadata("collected", count=len(opportunities))
     else:
         # Fast-forward stage display for resumed runs
-        progress.begin_stage(1, "skipped (resumed from cache)")
-        progress.end_stage(1, f"{len(opportunities)} loaded from cache")
-        progress.begin_stage(2, "skipped (resumed from cache)")
-        progress.end_stage(2, f"{len(opportunities)} opportunities")
-        progress.begin_stage(3, "skipped (resumed from cache)")
-        progress.end_stage(3, f"{len(opportunities)} opportunities")
+        progress.begin_stage(1, "saltata (ripresa da cache)")
+        progress.end_stage(1, f"{len(opportunities)} caricati da cache")
+        progress.begin_stage(2, "saltata (ripresa da cache)")
+        progress.end_stage(2, f"{len(opportunities)} opportunità")
+        progress.begin_stage(3, "saltata (ripresa da cache)")
+        progress.end_stage(3, f"{len(opportunities)} opportunità")
 
     # 4. Classify
-    progress.begin_stage(4, f"Gemini {settings.gemini_model}")
+    progress.begin_stage(4, f"classificazione con Gemini {settings.gemini_model}")
     classifier = GeminiClassifier(settings)
     classified = await classifier.classify_all(
         opportunities,
@@ -372,17 +429,17 @@ async def run(args: argparse.Namespace) -> None:
     )
     cache.save_metadata("classified", count=len(classified))
     _patch_extracted_dates(classified)
-    progress.end_stage(4, f"{len(classified)} classified")
+    progress.end_stage(4, f"{len(classified)} classificati")
 
     # 5. Enrich missing dates by fetching source pages
     missing_before = sum(1 for c in classified if c.opportunity.deadline is None)
     if missing_before:
-        progress.begin_stage(5, f"enriching {missing_before} missing dates via page fetch")
-        patched = await enrich_missing_dates(classified, settings)
-        progress.end_stage(5, f"{patched} dates extracted from source pages")
+        progress.begin_stage(5, f"{missing_before} date mancanti da recuperare")
+        patched = await enrich_missing_dates(classified, settings, progress=progress)
+        progress.end_stage(5, f"{patched} date estratte dalle pagine sorgente")
     else:
-        progress.begin_stage(5, "all dates already present")
-        progress.end_stage(5, "nothing to enrich")
+        progress.begin_stage(5, "tutte le date già presenti")
+        progress.end_stage(5, "nessun arricchimento necessario")
 
     # 5b. Remove items that now have a past deadline after enrichment
     classified = _filter_past_after_enrichment(classified)
@@ -407,12 +464,12 @@ async def run(args: argparse.Namespace) -> None:
         elapsed_seconds=elapsed_seconds,
     )
     if result_path:
-        progress.end_stage(6, f"report saved to {result_path}")
+        progress.end_stage(6, f"report salvato in {result_path}")
     else:
-        progress.end_stage(6, "report sent via email")
+        progress.end_stage(6, "report inviato via email")
 
     cache.save_metadata("complete", count=len(classified), relevant=len(relevant))
-    progress.finish(f"{len(relevant)} relevant out of {len(opportunities)} analyzed")
+    progress.finish(f"{len(relevant)} rilevanti su {len(opportunities)} analizzati")
 
 
 def cli() -> None:

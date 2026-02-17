@@ -15,6 +15,7 @@ class Source(str, enum.Enum):
     ANAC = "ANAC"
     EVENT = "Event"
     REGIONALE = "Regionale"
+    WEB_SEARCH = "WebSearch"
 
 
 class OpportunityType(str, enum.Enum):

@@ -2,7 +2,7 @@
 
 ## 1. Panoramica architetturale
 
-Monitor Bot è un’applicazione Python asincrona che orchestra una pipeline di raccolta, classificazione e report. L’architettura è modulare: ogni collector è indipendente e il flusso è gestito da un orchestratore centrale.
+Monitor Bot è un'applicazione Python asincrona che orchestra una pipeline di raccolta, classificazione e report. L'architettura è modulare: ogni collector è indipendente e il flusso è gestito da un orchestratore centrale.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -11,20 +11,22 @@ Monitor Bot è un’applicazione Python asincrona che orchestra una pipeline di 
 │  1. Collect   →  2. Deduplicate  →  3. Filter  →  4. Classify           │
 │       │                  │               │              │                 │
 │       ▼                  ▼               ▼              ▼                 │
-│  ┌─────────┐      ┌──────────┐    ┌──────────┐   ┌─────────┐            │
-│  │ TED     │      │ URL/     │    │ deadline │   │ Gemini  │            │
-│  │ ANAC    │      │ title    │    │ >= today │   │ Flash   │            │
-│  │ Events  │      │ dedup    │    │          │   │ Pro     │            │
-│  │ WebEvents│     └──────────┘    └──────────┘   └─────────┘            │
-│  └─────────┘                                                             │
+│  ┌──────────┐      ┌──────────┐    ┌──────────┐   ┌─────────┐           │
+│  │ TED      │      │ URL/     │    │ deadline │   │ Gemini  │           │
+│  │ ANAC     │      │ title    │    │ >= today │   │ Flash   │           │
+│  │ Events   │      │ dedup    │    │          │   │ Pro     │           │
+│  │ WebEvents│      └──────────┘    └──────────┘   └─────────┘           │
+│  │ WebTender│                                                            │
+│  │ WebSearch│                                                            │
+│  └──────────┘                                                            │
 │                                                                          │
-│  5. Enrich dates  →  5b. dedup events  →  6. Notify                       │
-│       │                      │                    │                       │
-│       ▼                      ▼                    ▼                       │
-│  ┌─────────────┐      ┌─────────────┐      ┌─────────────┐              │
-│  │ Fetch page  │      │ same date   │      │ HTML report │              │
-│  │ + Gemini    │      │ same source │      │ or email    │              │
-│  └─────────────┘      └─────────────┘      └─────────────┘              │
+│  5. Enrich dates  →  5b. filter past  →  5c. dedup events  →  6. Notify  │
+│       │                      │                    │                │      │
+│       ▼                      ▼                    ▼                ▼      │
+│  ┌─────────────┐      ┌─────────────┐      ┌─────────────┐  ┌────────┐  │
+│  │ Fetch page  │      │ deadline    │      │ same date   │  │ HTML   │  │
+│  │ + Gemini    │      │ < today?    │      │ same source │  │ report │  │
+│  └─────────────┘      └─────────────┘      └─────────────┘  └────────┘  │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -39,7 +41,7 @@ Monitor Bot è un’applicazione Python asincrona che orchestra una pipeline di 
 | HTTP client | httpx (async) |
 | Parsing HTML | BeautifulSoup4 |
 | Feed RSS/Atom | feedparser |
-| AI | Google Gemini (google-genai) |
+| AI | Google Gemini (google-genai) con Google Search grounding |
 | Config | TOML (tomllib) + pydantic-settings |
 | Validazione | Pydantic v2 |
 | Template | Jinja2 |
@@ -58,14 +60,15 @@ src/monitor_bot/
 ├── date_enricher.py     # Fetch pagine + Gemini per estrarre date
 ├── notifier.py          # Report HTML, invio email
 ├── persistence.py       # PipelineCache – checkpoint su disco
-├── progress.py          # ProgressTracker – output progresso
+├── progress.py          # ProgressTracker – barra progresso in italiano con icone
 └── collectors/
     ├── base.py          # BaseCollector (abstract)
     ├── ted.py           # TEDCollector – API TED
     ├── anac.py          # ANACCollector – ANAC OCDS
     ├── events.py        # EventsCollector – RSS/Atom
     ├── web_events.py    # WebEventsCollector – pagine HTML + Gemini
-    └── web_tenders.py   # WebTendersCollector – bandi regionali italiani
+    ├── web_tenders.py   # WebTendersCollector – bandi regionali italiani
+    └── web_search.py    # WebSearchCollector – ricerca Google + Gemini
 ```
 
 ---
@@ -76,7 +79,7 @@ src/monitor_bot/
 
 - **Entry point**: `cli()` → `run(args)`
 - **Argomenti**: `--config`, `--test`, `--italia`, `--no-resume`
-- **Pipeline**: `_collect` → `_deduplicate` → `_filter_future` → `classify_all` → `_patch_extracted_dates` → `enrich_missing_dates` → `_dedup_events_by_date` → `notify`
+- **Pipeline**: `_collect` → `_deduplicate` → `_filter_future` → `classify_all` → `_patch_extracted_dates` → `enrich_missing_dates` → `_filter_past_after_enrichment` → `_dedup_events_by_date` → `notify`
 - **Resume**: se `--no-resume` non è usato, usa `PipelineCache.find_latest_run()` e carica `collected.json`
 
 ### 4.2 config.py
@@ -84,12 +87,13 @@ src/monitor_bot/
 - **Secrets**: `.env` via `pydantic_settings` (GEMINI_API_KEY, SMTP, ecc.)
 - **Parametri**: `config.toml` via `tomllib`
 - **Classe**: `Settings` – merge di secrets e parametri
+- **Nuovi campi**: `enable_web_search`, `web_search_queries`, `web_search_max_per_query`
 
 ### 4.3 models.py
 
 ```python
 # Modelli principali
-Source          # TED | ANAC | EVENT
+Source          # TED | ANAC | EVENT | REGIONALE | WEB_SEARCH
 OpportunityType # BANDO | CONCORSO | EVENTO
 Category        # SAP | DATA | AI | CLOUD | OTHER
 Opportunity      # id, title, description, deadline, source_url, ...
@@ -124,8 +128,20 @@ ClassifiedOpportunity  # opportunity + classification
 - Crawling a due fasi: discovery link bandi da portali regionali + extraction dettagli
 - Seed pages: portali bandi delle Regioni italiane (Lombardia, Lazio, Emilia-Romagna, ecc.)
 - Gemini filtra i link IT-rilevanti, poi estrae titolo, scadenza, dotazione, ente, requisiti
+- **URL specifici**: i link nella pagina vengono passati a Gemini durante l'estrazione, in modo da ottenere l'URL della pagina di dettaglio del bando (non della pagina-elenco generica)
 - Source: `Regionale`, OpportunityType: `Bando`
 - Attivato con `web_tenders = true` in config (default: disattivato, attivo in `--italia`)
+
+**WebSearchCollector** (nuovo):
+- Usa Gemini con Google Search grounding per eseguire query di ricerca configurabili
+- Due fasi:
+  1. **Ricerca**: per ogni query configurata, invoca Gemini con `Tool(google_search=GoogleSearch())` per ottenere URL rilevanti
+  2. **Estrazione**: per ogni URL trovato, fetch della pagina e invio a Gemini per estrarre informazioni strutturate (titolo, scadenza, ente, tipo, ecc.)
+- Source: `WEB_SEARCH`, OpportunityType: determinato da Gemini (`BANDO` o `EVENTO`)
+- Attivato con `web_search = true` in config
+- Query configurabili in `[web_search].queries`
+- `max_results_per_query`: limite risultati per ogni query (default: 5)
+- Rate limiting: 1.5s tra ogni richiesta
 
 ### 4.5 classifier.py
 
@@ -136,12 +152,13 @@ ClassifiedOpportunity  # opportunity + classification
 
 ### 4.6 date_enricher.py
 
-- **enrich_missing_dates(classified, settings)**
+- **enrich_missing_dates(classified, settings, progress)**
 - Per ogni opportunità senza `deadline` e con `source_url`:
   - Fetch pagina
   - Estrazione testo HTML
-  - Invio a Gemini con prompt dedicato all’estrazione date
+  - Invio a Gemini con prompt dedicato all'estrazione date
   - Parsing JSON e patch del campo `deadline`
+- Aggiorna la barra di progresso item per item (se `progress` è fornito)
 
 ### 4.7 persistence.py
 
@@ -151,7 +168,7 @@ ClassifiedOpportunity  # opportunity + classification
 
 ### 4.8 notifier.py
 
-- **Notifier.notify(classified, total_analyzed)**
+- **Notifier.notify(classified, total_analyzed, elapsed_seconds)**
 - Filtra per `relevance_threshold`
 - Render Jinja2 con `templates/report.html`
 - Salvataggio in `output/report_*.html` o invio email
@@ -161,7 +178,7 @@ ClassifiedOpportunity  # opportunity + classification
 ## 5. Flusso dati
 
 ```
-Collectors (TED, ANAC, Events, WebEvents)
+Collectors (TED, ANAC, Events, WebEvents, WebTenders, WebSearch)
     │
     ▼
 list[Opportunity]  (raw)
@@ -185,7 +202,7 @@ enrich_missing_dates (fetch page + Gemini; TED XML fallback)
 _filter_past_after_enrichment (rimuove item con deadline < today)
     │
     ▼
-_dedup_events_by_date (stesso evento, stessa data/fonte)
+_dedup_events_by_date (fuzzy matching titoli per stessa data)
     │
     ▼
 notifier.notify() → HTML report (con tempo di esecuzione)
@@ -195,7 +212,17 @@ notifier.notify() → HTML report (con tempo di esecuzione)
 
 ## 6. Configurazione tecnica
 
-### 6.1 config.toml
+### 6.1 Struttura file di configurazione
+
+Il progetto usa tre file TOML, tutti strutturati con commenti guida:
+
+| File | Uso |
+|------|-----|
+| `config.toml` | Configurazione produzione (EMEA) |
+| `config.italia.toml` | Configurazione solo Italia |
+| `config.test.toml` | Configurazione test rapido |
+
+### 6.2 Sezioni principali di config.toml
 
 ```toml
 [gemini]
@@ -215,16 +242,29 @@ ted = true
 anac = true
 events = true
 web_events = true
+web_tenders = false       # attivo in modalità Italia
+web_search = true         # ricerca web Google
 
 [events]
 feeds = ["https://...", ...]
 web_pages = ["https://www.aiweek.it/", ...]
 
+[regional_tenders]          # solo con web_tenders = true
+web_pages = ["https://...", ...]
+
+[web_search]                # solo con web_search = true
+queries = [
+    "bandi innovazione digitale Italia 2026",
+    "eventi conferenze AI Europa 2026",
+    # ...
+]
+max_results_per_query = 5
+
 [company]
 profile = "..."
 ```
 
-### 6.2 Modalità Italia (config.italia.toml)
+### 6.3 Modalità Italia (config.italia.toml)
 
 ```bash
 uv run monitor-bot --italia --no-resume
@@ -239,22 +279,9 @@ Perimetro esclusivamente italiano:
 | WebTenders | Portali regionali: Lombardia, Lazio, Emilia-Romagna, Piemonte, Veneto + Italia Domani (PNRR) |
 | Events RSS | ForumPA, AgID, Innovazione Italia |
 | WebEvents | AI Week, Google Cloud Events IT, Microsoft AI Tour |
+| WebSearch | Query focalizzate su bandi/eventi IT in Italia |
 
-Configurazione aggiuntiva rispetto a `config.toml`:
-
-```toml
-[collectors]
-web_tenders = true    # attiva il collector bandi regionali
-
-[regional_tenders]
-web_pages = [
-    "https://www.bandi.regione.lombardia.it/servizi/servizio/catalogo/ricerca-innovazione",
-    "https://imprese.regione.emilia-romagna.it/Finanziamenti/finanziamenti-in-corso",
-    # ...
-]
-```
-
-### 6.3 .env
+### 6.4 .env
 
 ```
 GEMINI_API_KEY=...
@@ -273,6 +300,7 @@ SMTP_PASSWORD=...
 | TED | `POST https://api.ted.europa.eu/v3/notices/search` | Nessuna |
 | ANAC | CKAN bulk JSON (URL da portale) | Nessuna |
 | Gemini | `google.genai.models.generate_content` | API key |
+| Google Search | Via Gemini grounding (`Tool(google_search=GoogleSearch())`) | Stessa API key Gemini |
 
 ---
 
@@ -283,6 +311,7 @@ SMTP_PASSWORD=...
 - **Resume**: checkpoint dopo collect e durante classificazione
 - **TED**: retry su 429/5xx con backoff
 - **ANAC**: streaming con fallback su download troncati
+- **WebSearch**: errori di singole query/pagine non bloccano le altre
 
 ---
 
@@ -292,7 +321,14 @@ SMTP_PASSWORD=...
 
 1. Creare `collectors/nuovo.py` con classe che estende `BaseCollector`
 2. Implementare `async def collect() -> list[Opportunity]`
-3. Registrare in `main.py` in `_collect()` e in `config.toml` se serve flag
+3. Registrare in `main.py` in `_collect()` e in `config.py` per il flag di abilitazione
+
+### Aggiungere nuove fonti (senza codice)
+
+- **Feed RSS**: aggiungere URL in `[events].feeds` nel config TOML
+- **Pagine web**: aggiungere URL in `[events].web_pages` nel config TOML
+- **Bandi regionali**: aggiungere URL in `[regional_tenders].web_pages`
+- **Query di ricerca**: aggiungere stringa in `[web_search].queries`
 
 ### Aggiungere un nuovo campo a Opportunity
 
@@ -303,7 +339,9 @@ SMTP_PASSWORD=...
 ### Cambiare il formato del report
 
 - Modificare `templates/report.html` (Jinja2)
-- Variabili passate: `opportunities`, `total_analyzed`, `relevant_count`, `threshold`, `category_counts`, `type_counts`, `today`, `generated_at`, `lookback_days`
+- Variabili passate: `opportunities`, `total_analyzed`, `relevant_count`, `threshold`, `category_counts`, `type_counts`, `today`, `generated_at`, `lookback_days`, `elapsed_display`
+- Filtri client-side JavaScript: tipo, data (7/30/90gg + personalizzato), fonte/ente, categoria
+- Attributi `data-*` su ogni card: `data-type`, `data-deadline`, `data-authority`, `data-category`
 
 ---
 
@@ -317,23 +355,12 @@ uv run monitor-bot --test --no-resume
 
 Usa `config.test.toml` con scope ridotto per verificare la pipeline end-to-end in ~1-2 minuti:
 
-- **Collectors**: TED (max 5 risultati, solo Italia) + 1 feed RSS (ForumPA) + 1 seed page WebEvents (AI Week)
+- **Collectors**: TED (max 5 risultati, solo Italia) + 1 feed RSS (ForumPA) + 1 seed page WebEvents (AI Week) + 1 query WebSearch
 - **ANAC**: disabilitato (lento, non necessario per verifiche rapide)
 - **Soglia rilevanza**: 4 (più bassa per generare più risultati nel report di test)
 - **Lookback**: 3 giorni
 
 `--no-resume` è fondamentale per evitare che il test carichi dalla cache di un run precedente (in produzione con scope EMEA completo), falsando i risultati.
-
-**Output atteso** (~91s con Gemini Flash):
-
-```
-[1/6] Collecting       – TED: 5, Events: 1, WebEvents: ~3
-[2/6] Deduplicating    – ~8 unique
-[3/6] Filtering        – rimozione bandi scaduti
-[4/6] Classifying      – ~8 classificati con Gemini
-[5/6] Enriching dates  – patch date mancanti
-[6/6] Generating report – output/report_*.html
-```
 
 ### 10.2 Sviluppo
 
@@ -346,6 +373,9 @@ uv run monitor-bot
 
 # Run da zero (ignora cache)
 uv run monitor-bot --no-resume
+
+# Solo Italia
+uv run monitor-bot --italia --no-resume
 
 # Config personalizzata
 uv run monitor-bot --config mio_config.toml

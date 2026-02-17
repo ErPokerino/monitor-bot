@@ -187,6 +187,7 @@
   .source-ANAC       { background: #16a085; }
   .source-Event      { background: #8e44ad; }
   .source-Regionale  { background: #e67e22; }
+  .source-WebSearch   { background: #2980b9; }
 
   /* --- Opportunity Cards --- */
   .opp-card {
@@ -510,6 +511,21 @@
       <option value="all">Tutte le fonti</option>
     </select>
   </div>
+
+  <!-- Category Filter -->
+  {% if category_counts %}
+  <div class="filter-bar">
+    <span class="filter-label">Filtra per categoria:</span>
+    <button class="filter-btn active" data-filter="category" data-value="all" onclick="setCategoryFilter(this, 'all')">
+      Tutte <span class="count">{{ opportunities|length }}</span>
+    </button>
+    {% for cat, count in category_counts.items() %}
+    <button class="filter-btn" data-filter="category" data-value="{{ cat }}" onclick="setCategoryFilter(this, '{{ cat }}')">
+      <span class="cat-badge cat-{{ cat }}" style="margin-right:0;">{{ cat }}</span> <span class="count">{{ count }}</span>
+    </button>
+    {% endfor %}
+  </div>
+  {% endif %}
   {% endif %}
 
   <!-- Category Breakdown -->
@@ -529,7 +545,7 @@
   {% for item in opportunities %}
   {% set opp = item.opportunity %}
   {% set cls = item.classification %}
-  <div class="opp-card" data-type="{{ opp.opportunity_type.value }}" data-deadline="{{ opp.deadline.isoformat() if opp.deadline else '' }}" data-authority="{{ opp.contracting_authority or '' }}" style="border-left-color: {% if cls.relevance_score >= 8 %}#27ae60{% elif cls.relevance_score >= 6 %}#f39c12{% else %}#e74c3c{% endif %};">
+  <div class="opp-card" data-type="{{ opp.opportunity_type.value }}" data-deadline="{{ opp.deadline.isoformat() if opp.deadline else '' }}" data-authority="{{ opp.contracting_authority or '' }}" data-category="{{ cls.category.value }}" style="border-left-color: {% if cls.relevance_score >= 8 %}#27ae60{% elif cls.relevance_score >= 6 %}#f39c12{% else %}#e74c3c{% endif %};">
     <div class="top-row">
       <h3>{{ opp.title }}</h3>
       <span class="score-badge {% if cls.relevance_score >= 8 %}score-high{% elif cls.relevance_score >= 6 %}score-medium{% else %}score-low{% endif %}">
@@ -599,6 +615,7 @@
 <script>
 var activeType = 'all';
 var activeDateMode = 'all';
+var activeCategory = 'all';
 
 function setTypeFilter(btn, type) {
   activeType = type;
@@ -618,6 +635,13 @@ function setDateFilter(btn, mode) {
   } else {
     customRange.style.display = 'none';
   }
+  applyFilters();
+}
+
+function setCategoryFilter(btn, cat) {
+  activeCategory = cat;
+  document.querySelectorAll('[data-filter="category"]').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
   applyFilters();
 }
 
@@ -666,7 +690,9 @@ function applyFilters() {
       if (auth !== activeSource.toLowerCase()) sourceMatch = false;
     }
 
-    if (typeMatch && dateMatch && sourceMatch) {
+    var catMatch = (activeCategory === 'all' || card.getAttribute('data-category') === activeCategory);
+
+    if (typeMatch && dateMatch && sourceMatch && catMatch) {
       card.classList.remove('hidden');
       visible++;
     } else {
@@ -677,7 +703,7 @@ function applyFilters() {
   var countEl = document.getElementById('visibleCount');
   if (countEl) {
     var total = cards.length;
-    var anyFilter = (activeType !== 'all' || activeDateMode !== 'all' || activeSource !== 'all');
+    var anyFilter = (activeType !== 'all' || activeDateMode !== 'all' || activeSource !== 'all' || activeCategory !== 'all');
     if (anyFilter) {
       countEl.textContent = visible + ' / ' + total + ' visibili';
     } else {

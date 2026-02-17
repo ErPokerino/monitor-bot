@@ -2,16 +2,18 @@
 # Tender & Event Monitor – MODALITÀ ITALIA
 # ===========================================================================
 # Perimetro esclusivamente italiano: bandi nazionali (TED IT, ANAC),
-# bandi regionali (portali Regioni), eventi IT in Italia.
+# bandi regionali (portali Regioni), eventi IT in Italia, e ricerche web
+# focalizzate sull'Italia.
 #
 # Lancio:
 #   uv run monitor-bot --italia --no-resume
 #
-# Rispetto alla configurazione standard (EMEA):
+# Differenze rispetto alla configurazione standard (EMEA):
 #   - TED filtrato solo su Italia
 #   - ANAC attivo (bandi italiani)
 #   - Bandi regionali attivi (Lombardia, Lazio, Emilia-Romagna, ecc.)
 #   - Eventi solo italiani (ForumPA, AgID, AI Week, vendor events IT)
+#   - Ricerche web focalizzate su Italia
 #   - Profilo azienda focalizzato su Italia
 # ===========================================================================
 
@@ -21,66 +23,132 @@ model = "gemini-3-flash-preview"
 [classification]
 relevance_threshold = 6
 
-# ---------------------------------------------------------------------------
-# Scope – solo Italia
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# SCOPE – solo Italia
+# ===========================================================================
 [scope]
 lookback_days = 7
-max_results = 0
-cpv_codes = ["72", "48", "62", "64.2"]
-countries = ["IT"]
+max_results   = 0
+cpv_codes     = ["72", "48", "62", "64.2"]
+countries     = ["IT"]
 
-# ---------------------------------------------------------------------------
-# Collectors
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# COLLECTORS – tutti attivi per copertura completa Italia
+# ===========================================================================
 [collectors]
-ted          = true    # TED filtrato su Italia
-anac         = true    # ANAC Open Data – bandi nazionali italiani
-events       = true    # Feed RSS italiani
-web_events   = true    # Eventi IT in Italia (pagine web)
-web_tenders  = true    # Bandi regionali italiani (portali Regioni)
+ted         = true    # TED filtrato su Italia
+anac        = true    # ANAC Open Data – bandi nazionali italiani
+events      = true    # Feed RSS italiani
+web_events  = true    # Eventi IT in Italia (pagine web)
+web_tenders = true    # Bandi regionali italiani (portali Regioni)
+web_search  = true    # Ricerca web per nuovi bandi/eventi italiani
 
-# ---------------------------------------------------------------------------
-# Feed RSS – fonti italiane
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# FONTI EVENTI
+# ===========================================================================
+# Per aggiungere una nuova fonte RSS: inserire l'URL del feed qui sotto.
+# Per aggiungere una pagina web (non RSS): inserirla in web_pages.
+# Il bot scopre automaticamente i link agli eventi dalla pagina.
+
 [events]
+
+# --- Feed RSS/Atom ---
+# Fonti principali per PA e innovazione italiana.
 feeds = [
+    # PA e innovazione pubblica
     "https://www.forumpa.it/feed/",
     "https://www.agid.gov.it/it/rss.xml",
     "https://innovazione.gov.it/feed.xml",
+
+    # Per aggiungere: copiare l'URL del feed RSS e incollare qui
+    # "https://esempio.it/feed/",
 ]
 
-# Pagine web eventi IT in Italia
+# --- Pagine web eventi (seed pages) ---
+# Il bot visita queste pagine, trova i link agli eventi e li analizza.
 web_pages = [
+    # Conferenze e summit IT in Italia
     "https://www.aiweek.it/",
+
+    # Vendor tech – pagine eventi con focus Italia
     "https://cloud.google.com/events?hl=it",
     "https://aitour.microsoft.com/",
+
+    # Per aggiungere: incollare l'URL della pagina eventi qui
+    # "https://esempio.com/events/",
 ]
 
-# ---------------------------------------------------------------------------
-# Bandi regionali – portali delle Regioni italiane
-# ---------------------------------------------------------------------------
-# Le pagine sono seed: il collector scopre i link ai singoli bandi
-# e poi estrae i dettagli da ogni pagina bando.
+# ===========================================================================
+# FONTI BANDI REGIONALI
+# ===========================================================================
+# Portali bandi delle Regioni italiane.
+# Il bot visita la pagina, scopre i link ai singoli bandi IT/innovazione
+# e ne estrae i dettagli automaticamente.
+#
+# Per aggiungere una nuova regione:
+#   1. Trovare la pagina del portale bandi della regione
+#   2. Incollare l'URL qui sotto con un commento per il nome regione
+
 [regional_tenders]
 web_pages = [
-    # Lombardia – sezione Innovazione e Ricerca
-    "https://www.bandi.regione.lombardia.it/servizi/servizio/catalogo/ricerca-innovazione",
-    # Lazio – sezione Innovazione
+    # --- Lombardia ---
+    "https://www.bandi.regione.lombardia.it/servizi/home",
+
+    # --- Lazio ---
     "https://www.regione.lazio.it/cittadini/attivita-produttive-e-commercio",
-    # Emilia-Romagna – bandi imprese e innovazione
+
+    # --- Emilia-Romagna ---
     "https://imprese.regione.emilia-romagna.it/Finanziamenti/finanziamenti-in-corso",
-    # Piemonte – bandi innovazione
+
+    # --- Piemonte ---
     "https://bfrancesi.regione.piemonte.it/bandi-piemonte",
-    # Veneto – bandi POR FESR e innovazione
+
+    # --- Veneto ---
     "https://www.regione.veneto.it/web/programmi-comunitari/fesr-2021-2027",
-    # Italia – bandi PNRR e innovazione (portale nazionale)
+
+    # --- Portale nazionale PNRR ---
     "https://www.italiadomani.gov.it/content/sogei-ng/it/it/Avvisi.html",
+
+    # Per aggiungere una regione: incollare l'URL del portale bandi qui
+    # --- Toscana ---
+    # "https://www.regione.toscana.it/bandi",
+    # --- Campania ---
+    # "https://www.regione.campania.it/...",
 ]
 
-# ---------------------------------------------------------------------------
-# Profilo azienda – focalizzato su Italia
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# RICERCHE WEB
+# ===========================================================================
+# Query di ricerca Google per scoprire nuovi bandi/eventi non coperti
+# dai siti configurati sopra. Aggiungere query specifiche per il proprio
+# settore e territorio.
+#
+# Suggerimenti:
+#   - Includere l'anno corrente (2026) per risultati recenti
+#   - Specificare "Italia" per limitare al territorio
+#   - Usare termini specifici del settore (SAP, cloud, AI, ecc.)
+
+[web_search]
+queries = [
+    # Bandi e gare IT italiane
+    "bandi innovazione digitale Italia 2026",
+    "bandi PNRR servizi IT 2026",
+    "bandi regione digitalizzazione 2026",
+    "gare appalti servizi informatici pubblica amministrazione Italia 2026",
+
+    # Eventi e conferenze IT in Italia
+    "eventi conferenze AI Italia 2026",
+    "eventi cloud computing Italia 2026",
+    "conferenze SAP Italia 2026",
+
+    # Per aggiungere: scrivere una query Google e incollarla qui
+    # "bandi SAP pubblica amministrazione Italia 2026",
+]
+max_results_per_query = 5
+
+# ===========================================================================
+# PROFILO AZIENDA – focalizzato su Italia
+# ===========================================================================
 [company]
 profile = """
 Siamo un'azienda IT medio-grande che opera principalmente in Italia. \
@@ -101,6 +169,9 @@ Abbiamo le certificazioni necessarie per la partecipazione a gare pubbliche \
 in Italia (ANAC, MePA, CONSIP).
 """
 
+# ===========================================================================
+# EMAIL (opzionale)
+# ===========================================================================
 [email]
 from = ""
 to   = ""

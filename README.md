@@ -1,32 +1,33 @@
-# Monitor Bot – Tender & Event Monitor
+# Opportunity Radar – Tender & Event Monitor
 
-Monitoraggio automatico di bandi di gara, concorsi pubblici ed eventi IT rilevanti per aziende del settore tecnologico. Il sistema raccoglie opportunità da fonti pubbliche (TED, ANAC, feed RSS, pagine web, ricerche Google), le classifica tramite intelligenza artificiale (Google Gemini) e genera report HTML in italiano.
+Monitoraggio automatico di bandi di gara, concorsi pubblici ed eventi IT rilevanti per aziende del settore tecnologico. Il sistema raccoglie opportunità da fonti pubbliche (TED, ANAC, feed RSS, pagine web, ricerche Google), le classifica tramite intelligenza artificiale (Google Gemini) e presenta i risultati in una web app enterprise.
 
-## Caratteristiche principali
+## Architettura
 
-- **Bandi e concorsi**: TED (UE), ANAC (Italia), portali regionali italiani con filtri per CPV e Paesi
-- **Eventi**: feed RSS (ForumPA, AgID, Innovazione Italia, EU Digital, SAP) e pagine web (AI Week, Google Cloud, AWS, Azure, Databricks)
-- **Ricerca web**: scoperta automatica di nuovi bandi/eventi tramite Google Search con Gemini grounding
-- **Modalità Italia**: perimetro esclusivamente italiano con bandi regionali (Lombardia, Lazio, Emilia-Romagna, ecc.)
-- **Classificazione AI**: punteggio di rilevanza (1–10) e categorizzazione (SAP, Data, AI, Cloud)
-- **Date esplicite**: scadenze per bandi, date evento per eventi (estrazione automatica)
-- **Report HTML**: interfaccia in italiano con filtri per tipo, data, fonte/ente e categoria (SAP, Cloud, AI, Data, Other)
-- **Progresso chiaro**: barra di avanzamento in italiano con icone per ogni fase della pipeline
-- **Resume**: riprende da checkpoint in caso di interruzione
+Il progetto è composto da due processi separati:
+
+| Componente | Tecnologia | Porta | Comando |
+|------------|-----------|-------|---------|
+| **Backend (API)** | FastAPI + SQLAlchemy + SQLite | 8000 | `uv run monitor-web` |
+| **Frontend (UI)** | Vite + Alpine.js + TailwindCSS | 5173 | `npm run dev` (da `frontend/`) |
+
+In sviluppo, il frontend proxya le chiamate API (`/api/*`) al backend. In produzione, `npm run build` genera file statici servibili da nginx o dal backend stesso.
 
 ## Requisiti
 
 - Python 3.12+
 - [uv](https://docs.astral.sh/uv/) (consigliato) oppure pip
+- Node.js 18+ e npm
 
 ## Installazione
 
 ```bash
-# Con uv (consigliato)
+# Backend
 uv sync
 
-# Oppure con pip
-pip install -e .
+# Frontend
+cd frontend
+npm install
 ```
 
 ## Configurazione
@@ -42,130 +43,119 @@ pip install -e .
    ```
 
 3. (Opzionale) Configura SMTP in `.env` per l'invio via email.
+4. Personalizza `config.toml` (profilo azienda, fonti, ricerche web, ecc.).
 
-4. Personalizza `config.toml` (profilo azienda, soglia rilevanza, fonti, ricerche web, ecc.).
+## Avvio in sviluppo
 
-## File di configurazione
+Aprire **due terminali separati**:
 
-Il progetto include tre configurazioni pronte all'uso:
-
-| File | Uso | Comando |
-|------|-----|---------|
-| `config.toml` | **Produzione** – scope EMEA completo | `uv run monitor-bot` |
-| `config.test.toml` | **Test** – scope ridotto per test rapido | `uv run monitor-bot --test --no-resume` |
-| `config.italia.toml` | **Italia** – solo perimetro italiano | `uv run monitor-bot --italia --no-resume` |
-
-Ogni file è strutturato con commenti guida che spiegano ogni sezione e come aggiungere nuove fonti.
-
-### Come aggiungere nuove fonti
-
-Nei file di configurazione, le fonti sono raggruppate per tipologia con istruzioni inline:
-
-- **Feed RSS**: aggiungere l'URL in `[events].feeds`
-- **Pagine web eventi**: aggiungere l'URL in `[events].web_pages`
-- **Bandi regionali**: aggiungere l'URL del portale in `[regional_tenders].web_pages`
-- **Ricerche web**: aggiungere la query in `[web_search].queries`
-
-Dopo aver aggiunto fonti, rilanciare con `--no-resume` per raccogliere i nuovi dati.
-
-## Utilizzo
-
+**Terminale 1 – Backend:**
 ```bash
-# Esecuzione standard
-uv run monitor-bot
-
-# Esecuzione senza cache (raccolta completa da zero)
-uv run monitor-bot --no-resume
-
-# Configurazione personalizzata
-uv run monitor-bot --config mio_config.toml
+uv run monitor-web
 ```
 
-Il report HTML viene salvato in `output/report_YYYYMMDD_HHMMSS.html`.
-
-### Modalità test
-
-Per verificare rapidamente il funzionamento della pipeline end-to-end senza attendere una raccolta completa:
-
+**Terminale 2 – Frontend:**
 ```bash
-uv run monitor-bot --test --no-resume
+cd frontend
+npm run dev
 ```
 
-Usa `config.test.toml` con una configurazione ridotta:
+Aprire il browser su **http://localhost:5173**.
 
-| Parametro | Produzione | Test |
-|-----------|-----------|------|
-| Paesi | 30+ (EMEA) | Solo Italia |
-| Risultati per collector | Illimitati | Max 5 |
-| Lookback | 7 giorni | 3 giorni |
-| TED | Attivo | Attivo |
-| ANAC | Attivo | **Disattivato** |
-| Feed RSS | 5 feed | 1 (ForumPA) |
-| WebEvents | 6 seed pages | 1 (AI Week) |
-| WebSearch | 6 query | 1 query, max 3 risultati |
-| Soglia rilevanza | 6 | 4 |
+## Pagine dell'applicazione
 
-**Tempo di esecuzione**: ~1-2 minuti (vs 5-15 min in produzione).
+| Pagina | Percorso | Descrizione |
+|--------|----------|-------------|
+| Dashboard | `/` | Panoramica con statistiche e esecuzioni recenti |
+| Configurazioni | `/configurazioni.html` | Link diretti, ricerche internet, impostazioni (soglia pertinenza, profilo azienda) |
+| Esegui | `/esegui.html` | Avvio pipeline con barra di progresso in tempo reale |
+| Storico | `/storico.html` | Lista esecuzioni precedenti con selezione multipla e cancellazione |
+| Dettaglio | `/dettaglio.html?id=N` | Risultati di una singola esecuzione con filtri (tipo, categoria, scadenza) e export multi-formato (CSV, HTML, PDF) |
 
-> **Nota**: `--no-resume` è importante per evitare di riprendere dalla cache di un run precedente con scope più ampio.
+## API Endpoints
 
-### Modalità Italia
+| Metodo | Endpoint | Descrizione |
+|--------|----------|-------------|
+| GET | `/api/dashboard` | Statistiche dashboard |
+| GET/POST | `/api/sources` | Lista e creazione link diretti |
+| PATCH/DELETE | `/api/sources/{id}` | Modifica e cancellazione |
+| POST | `/api/sources/{id}/toggle` | Attiva/disattiva |
+| GET/POST | `/api/queries` | Lista e creazione ricerche internet |
+| PATCH/DELETE | `/api/queries/{id}` | Modifica e cancellazione |
+| POST | `/api/queries/{id}/toggle` | Attiva/disattiva |
+| GET/PUT | `/api/settings` | Lettura e aggiornamento impostazioni |
+| GET | `/api/runs` | Lista esecuzioni |
+| GET | `/api/runs/{id}` | Dettaglio esecuzione con risultati |
+| POST | `/api/runs/start` | Avvia nuova esecuzione |
+| POST | `/api/runs/stop` | Interrompi esecuzione in corso |
+| DELETE | `/api/runs/{id}` | Cancella esecuzione |
+| POST | `/api/runs/delete-batch` | Cancellazione multipla |
+| WS | `/api/runs/ws` | Progresso in tempo reale |
 
-Per eseguire il monitoraggio solo sul perimetro italiano (bandi nazionali, regionali ed eventi IT in Italia):
+## CLI (uso diretto pipeline)
 
 ```bash
-uv run monitor-bot --italia --no-resume
-```
-
-Usa `config.italia.toml` con:
-
-| Fonte | Descrizione |
-|-------|-------------|
-| **TED** | Solo bandi con country = IT |
-| **ANAC** | Bandi nazionali italiani |
-| **Bandi regionali** | Portali di Lombardia, Lazio, Emilia-Romagna, Piemonte, Veneto + Italia Domani (PNRR) |
-| **Feed RSS** | ForumPA, AgID, Innovazione Italia |
-| **WebEvents** | AI Week, Google Cloud Events IT, Microsoft AI Tour |
-| **WebSearch** | Query focalizzate su bandi/eventi IT in Italia |
-
-I bandi regionali vengono raccolti tramite scraping dei portali delle Regioni con estrazione intelligente via Gemini (stessa logica a due fasi degli eventi web).
-
-### Ricerca web
-
-Il collector WebSearch usa Gemini con Google Search grounding per scoprire nuovi bandi/eventi non coperti dai siti configurati. Le query di ricerca sono configurabili in `[web_search].queries`:
-
-```toml
-[web_search]
-queries = [
-    "bandi innovazione digitale Italia 2026",
-    "eventi conferenze AI Italia 2026",
-    # aggiungere nuove query qui
-]
-max_results_per_query = 5
+uv run monitor-bot                              # Esecuzione standard
+uv run monitor-bot --no-resume                   # Senza cache
+uv run monitor-bot --config mio_config.toml      # Config custom
+uv run monitor-bot --test --no-resume            # Test rapido
+uv run monitor-bot --italia --no-resume          # Solo Italia
 ```
 
 ## Struttura del progetto
 
 ```
 monitor-bot/
-├── config.toml              # Configurazione principale (EMEA)
-├── config.italia.toml       # Configurazione Italia
-├── config.test.toml         # Configurazione test rapido
-├── .env                     # Chiavi API (non committare)
-├── src/monitor_bot/         # Codice sorgente
-│   ├── main.py             # CLI e pipeline
-│   ├── collectors/         # TED, ANAC, Events, WebEvents, WebTenders, WebSearch
-│   ├── classifier.py       # Classificazione Gemini
-│   ├── date_enricher.py
-│   └── ...
-├── templates/               # Template report HTML
-└── output/                  # Report e cache
+├── config.toml                # Configurazione principale (EMEA)
+├── config.italia.toml         # Configurazione Italia
+├── config.test.toml           # Configurazione test rapido
+├── .env                       # Chiavi API (non committare)
+├── pyproject.toml             # Dipendenze Python
+├── src/monitor_bot/           # Backend Python
+│   ├── app.py                 # FastAPI app factory (API-only)
+│   ├── main.py                # CLI entry point
+│   ├── pipeline.py            # Pipeline engine
+│   ├── config.py              # Configurazione TOML + secrets
+│   ├── database.py            # SQLAlchemy async engine
+│   ├── db_models.py           # ORM models
+│   ├── schemas.py             # Pydantic schemas
+│   ├── routes/                # API endpoints
+│   │   ├── api_dashboard.py
+│   │   ├── api_sources.py
+│   │   ├── api_queries.py
+│   │   ├── api_runs.py
+│   │   └── api_settings.py
+│   ├── services/              # Business logic
+│   │   ├── sources.py
+│   │   ├── queries.py
+│   │   ├── runs.py
+│   │   └── settings.py
+│   ├── collectors/            # Data collectors
+│   │   ├── ted.py
+│   │   ├── anac.py
+│   │   ├── events.py
+│   │   ├── web_events.py
+│   │   ├── web_tenders.py
+│   │   └── web_search.py
+│   ├── classifier.py          # Classificazione Gemini
+│   └── date_enricher.py       # Arricchimento date
+├── frontend/                  # Frontend Vite
+│   ├── package.json
+│   ├── vite.config.js
+│   ├── tailwind.config.js
+│   ├── index.html             # Dashboard
+│   ├── configurazioni.html    # Configurazioni (3 tab)
+│   ├── esegui.html            # Esecuzione pipeline
+│   ├── storico.html           # Storico esecuzioni
+│   ├── dettaglio.html         # Dettaglio risultati
+│   └── src/
+│       ├── main.js            # Alpine.js setup
+│       ├── style.css          # TailwindCSS
+│       ├── api.js             # Client API centralizzato
+│       └── components/        # Alpine.js components
+├── templates/                 # Legacy Jinja2 templates (non utilizzati)
+└── output/                    # Report e cache CLI
 ```
-
-## Documentazione
-
-- [Documentazione funzionale](docs/DOCUMENTAZIONE_FUNZIONALE.md) – obiettivi, funzionalità, casi d'uso
-- [Documentazione tecnica](docs/DOCUMENTAZIONE_TECNICA.md) – architettura, API, moduli
 
 ## Licenza
 

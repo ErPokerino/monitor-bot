@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Monitor Bot{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-2xl font-bold text-navy-800">Dashboard</h1>
+    <p class="mt-1 text-sm text-gray-500">Panoramica del sistema di monitoraggio</p>
+</div>
+
+<div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+    <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Fonti attive</p>
+                <p class="mt-1 text-3xl font-bold text-navy-800">{{ active_sources }}</p>
+            </div>
+            <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-accent-50 text-accent-600">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+            </div>
+        </div>
+        <p class="mt-2 text-xs text-gray-400">{{ total_sources }} totali</p>
+    </div>
+
+    <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Ricerche attive</p>
+                <p class="mt-1 text-3xl font-bold text-navy-800">{{ active_queries }}</p>
+            </div>
+            <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            </div>
+        </div>
+        <p class="mt-2 text-xs text-gray-400">{{ total_queries }} totali</p>
+    </div>
+
+    <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Ultima esecuzione</p>
+                {% if last_run %}
+                <p class="mt-1 text-lg font-bold text-navy-800">{{ last_run.started_at.strftime('%d/%m/%Y') }}</p>
+                {% else %}
+                <p class="mt-1 text-lg font-semibold text-gray-400">Mai</p>
+                {% endif %}
+            </div>
+            <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+        </div>
+        {% if last_run %}
+        <p class="mt-2 text-xs text-gray-400">{{ last_run.total_relevant }} rilevanti su {{ last_run.total_collected }} analizzati</p>
+        {% endif %}
+    </div>
+
+    <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-500">Azione rapida</p>
+            </div>
+        </div>
+        <a href="/run"
+           class="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-navy-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-navy-700 hover:shadow-md">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Avvia ricerca
+        </a>
+    </div>
+</div>
+
+{% if recent_runs %}
+<div class="rounded-xl border border-gray-200 bg-white shadow-sm">
+    <div class="border-b border-gray-200 px-6 py-4">
+        <h2 class="text-lg font-semibold text-navy-800">Esecuzioni recenti</h2>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead>
+                <tr class="border-b border-gray-100 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                    <th class="px-6 py-3">Data</th>
+                    <th class="px-6 py-3">Stato</th>
+                    <th class="px-6 py-3">Raccolti</th>
+                    <th class="px-6 py-3">Rilevanti</th>
+                    <th class="px-6 py-3">Durata</th>
+                    <th class="px-6 py-3"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for run in recent_runs %}
+                <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ run.started_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                    <td class="px-6 py-4">
+                        {% if run.status.value == 'completed' %}
+                        <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">Completato</span>
+                        {% elif run.status.value == 'running' %}
+                        <span class="inline-flex items-center rounded-full bg-accent-50 px-2.5 py-0.5 text-xs font-medium text-accent-700">In corso</span>
+                        {% elif run.status.value == 'failed' %}
+                        <span class="inline-flex items-center rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700">Errore</span>
+                        {% else %}
+                        <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">{{ run.status.value }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-600">{{ run.total_collected }}</td>
+                    <td class="px-6 py-4 text-sm font-semibold text-navy-800">{{ run.total_relevant }}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500">
+                        {% if run.elapsed_seconds %}{{ "%.0f"|format(run.elapsed_seconds) }}s{% else %}-{% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <a href="/history/{{ run.id }}" class="text-sm font-medium text-accent-600 hover:text-accent-800">Dettagli</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Fonti Monitorate - Monitor Bot{% endblock %}
+
+{% block content %}
+<div x-data="sourcesManager()" x-cloak>
+    <div class="mb-8 flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-navy-800">Fonti Monitorate</h1>
+            <p class="mt-1 text-sm text-gray-500">Pagine web, feed RSS e portali da monitorare</p>
+        </div>
+        <button @click="showAdd = true"
+                class="inline-flex items-center gap-2 rounded-lg bg-navy-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-navy-700 hover:shadow-md">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Aggiungi fonte
+        </button>
+    </div>
+
+    <!-- Add / Edit source modal -->
+    <div x-show="showAdd || showEdit" x-transition class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" @click.self="closeModals()">
+        <div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl" @click.stop>
+            <h3 class="text-lg font-semibold text-navy-800 mb-4" x-text="showEdit ? 'Modifica fonte' : 'Nuova fonte'"></h3>
+            <form @submit.prevent="showEdit ? updateSource() : addSource()">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Nome</label>
+                        <input x-model="form.name" type="text" required
+                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-accent-500 focus:ring-1 focus:ring-accent-500 outline-none"
+                               placeholder="es. Forum PA">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">URL</label>
+                        <input x-model="form.url" type="url" required
+                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-accent-500 focus:ring-1 focus:ring-accent-500 outline-none"
+                               placeholder="https://esempio.it/feed/">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
+                            <select x-model="form.category" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-accent-500 focus:ring-1 focus:ring-accent-500 outline-none">
+                                <option value="eventi">Eventi</option>
+                                <option value="bandi">Bandi</option>
+                                <option value="fondi">Fondi</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+                            <select x-model="form.source_type" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-accent-500 focus:ring-1 focus:ring-accent-500 outline-none">
+                                <option value="rss_feed">Feed RSS</option>
+                                <option value="web_page">Pagina Web</option>
+                                <option value="tender_portal">Portale Bandi</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end gap-3">
+                    <button type="button" @click="closeModals()" class="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100">Annulla</button>
+                    <button type="submit" class="rounded-lg bg-navy-800 px-4 py-2 text-sm font-semibold text-white hover:bg-navy-700" x-text="showEdit ? 'Aggiorna' : 'Salva'"></button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Category tabs -->
+    <div class="mb-6 flex gap-2">
+        <button @click="filter = 'all'" :class="filter === 'all' ? 'bg-navy-800 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'" class="rounded-lg px-4 py-2 text-sm font-medium border border-gray-200 transition-colors">Tutte</button>
+        <button @click="filter = 'eventi'" :class="filter === 'eventi' ? 'bg-navy-800 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'" class="rounded-lg px-4 py-2 text-sm font-medium border border-gray-200 transition-colors">Eventi</button>
+        <button @click="filter = 'bandi'" :class="filter === 'bandi' ? 'bg-navy-800 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'" class="rounded-lg px-4 py-2 text-sm font-medium border border-gray-200 transition-colors">Bandi</button>
+        <button @click="filter = 'fondi'" :class="filter === 'fondi' ? 'bg-navy-800 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'" class="rounded-lg px-4 py-2 text-sm font-medium border border-gray-200 transition-colors">Fondi</button>
+    </div>
+
+    <!-- Sources list -->
+    <div class="space-y-3">
+        {% for source in sources %}
+        <div x-show="filter === 'all' || filter === '{{ source.category.value }}'"
+             x-data="sourceRow({{ source.id }}, {{ 'true' if source.is_active else 'false' }}, {{ source.name|ja }}, {{ source.url|ja }}, {{ source.category.value|ja }}, {{ source.source_type.value|ja }})"
+             class="flex items-center gap-4 rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm transition-all hover:shadow-md"
+             :class="{ 'opacity-50': !active }">
+            <button @click="toggle()" class="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors" :class="active ? 'bg-accent-500' : 'bg-gray-300'">
+                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm" :class="active ? 'translate-x-6' : 'translate-x-1'"></span>
+            </button>
+            <div class="min-w-0 flex-1">
+                <p class="text-sm font-medium text-gray-900 truncate" x-text="name"></p>
+                <a :href="url" target="_blank" class="text-xs text-gray-400 hover:text-accent-600 truncate block" x-text="url"></a>
+            </div>
+            {% if source.category.value == 'eventi' %}
+            <span class="inline-flex items-center rounded-full bg-violet-50 px-2.5 py-0.5 text-xs font-medium text-violet-700 flex-shrink-0">Eventi</span>
+            {% elif source.category.value == 'bandi' %}
+            <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700 flex-shrink-0">Bandi</span>
+            {% else %}
+            <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 flex-shrink-0">Fondi</span>
+            {% endif %}
+            <span class="text-xs text-gray-400 flex-shrink-0 hidden sm:inline">
+                {% if source.source_type.value == 'rss_feed' %}RSS
+                {% elif source.source_type.value == 'web_page' %}Web
+                {% else %}Portale{% endif %}
+            </span>
+            <div class="inline-flex items-center gap-1 flex-shrink-0">
+                <button @click="$dispatch('edit-source', { id, name, url, category, sourceType })"
+                        class="rounded-lg p-1.5 text-gray-500 hover:bg-accent-50 hover:text-accent-600 transition-colors" title="Modifica">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                </button>
+                <button @click="remove()"
+                        class="rounded-lg p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors" title="Elimina">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+        {% if not sources %}
+        <div class="rounded-xl border border-gray-200 bg-white px-6 py-12 text-center text-sm text-gray-400 shadow-sm">Nessuna fonte configurata. Clicca "Aggiungi fonte" per iniziare.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

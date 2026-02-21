@@ -128,6 +128,53 @@ class Settings:
             self.email_from, self.email_to,
         ])
 
+    def apply_db_overrides(self, active_sources: list, active_queries: list) -> None:
+        """Replace TOML-driven source lists and collector flags with DB state.
+
+        Only active (toggled-on) sources and queries are passed in.
+        This ensures the pipeline respects the web UI toggles.
+        """
+        self.event_feeds = []
+        self.event_web_pages = []
+        self.web_tender_pages = []
+        self.web_search_queries = []
+
+        self.enable_ted = False
+        self.enable_anac = False
+        self.enable_events = False
+        self.enable_web_events = False
+        self.enable_web_tenders = False
+        self.enable_web_search = False
+
+        for src in active_sources:
+            url_lower = src.url.lower()
+            stype = src.source_type.value if hasattr(src.source_type, "value") else src.source_type
+
+            if "ted.europa.eu" in url_lower:
+                self.enable_ted = True
+            elif "anticorruzione.it" in url_lower:
+                self.enable_anac = True
+            elif stype == "rss_feed":
+                self.event_feeds.append(src.url)
+                self.enable_events = True
+            elif stype == "web_page":
+                self.event_web_pages.append(src.url)
+                self.enable_web_events = True
+            elif stype == "tender_portal":
+                self.web_tender_pages.append(src.url)
+                self.enable_web_tenders = True
+
+        max_per_query = 5
+        for q in active_queries:
+            text = q.query_text if hasattr(q, "query_text") else str(q)
+            mr = q.max_results if hasattr(q, "max_results") else 5
+            self.web_search_queries.append(text)
+            max_per_query = max(max_per_query, mr)
+
+        if self.web_search_queries:
+            self.enable_web_search = True
+            self.web_search_max_per_query = max_per_query
+
     def scope_summary(self) -> str:
         """Human-readable summary of the current search scope."""
         collectors = []

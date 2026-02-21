@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="it" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dettaglio Esecuzione - Opportunity Radar</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>[x-cloak]{display:none!important}</style>
+</head>
+<body class="h-full bg-gray-50 font-sans text-gray-800 antialiased">
+
+<!-- Toast container -->
+<div x-data="toastContainer" class="fixed top-4 right-4 z-[100] space-y-2 w-80" x-cloak>
+    <template x-for="t in toasts" :key="t.id">
+        <div :class="[t.leaving?'toast-leave':'toast-enter', t.type==='error'?'border-red-200 bg-red-50 text-red-800':t.type==='success'?'border-emerald-200 bg-emerald-50 text-emerald-800':'border-accent-200 bg-accent-50 text-accent-800']" class="rounded-lg border px-4 py-3 text-sm shadow-lg flex items-center justify-between">
+            <span x-text="t.message"></span><button @click="dismiss(t.id)" class="ml-2 opacity-50 hover:opacity-100">&times;</button>
+        </div>
+    </template>
+</div>
+
+<!-- Navbar -->
+<nav class="sticky top-0 z-50 border-b border-gray-200 bg-white/80 backdrop-blur-lg" x-data="navbar()">
+    <div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <a href="/" class="flex items-center gap-3">
+            <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-navy-800 to-accent-600 text-white font-bold text-sm">OR</div>
+            <span class="text-lg font-semibold text-navy-800 tracking-tight">Opportunity Radar</span>
+        </a>
+        <div class="hidden md:flex items-center gap-1">
+            <template x-for="link in links" :key="link.href"><a :href="link.href" :class="link.active?'bg-navy-800 text-white':'text-gray-600 hover:bg-gray-100 hover:text-navy-800'" class="rounded-lg px-3 py-2 text-sm font-medium transition-colors" x-text="link.label"></a></template>
+        </div>
+        <button @click="mobileOpen=!mobileOpen" class="md:hidden rounded-lg p-2 text-gray-500 hover:bg-gray-100"><svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+    </div>
+    <div x-show="mobileOpen" x-transition class="border-t border-gray-200 bg-white md:hidden"><div class="space-y-1 px-4 py-3"><template x-for="link in links" :key="link.href"><a :href="link.href" :class="link.active?'bg-navy-800 text-white':'text-gray-600 hover:bg-gray-100'" class="block rounded-lg px-3 py-2 text-sm font-medium" x-text="link.label"></a></template></div></div>
+</nav>
+
+<!-- Content -->
+<main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+<div x-data="detailPage" x-cloak>
+
+    <!-- Loading -->
+    <template x-if="loading">
+        <div class="animate-pulse space-y-4">
+            <div class="h-6 bg-gray-200 rounded w-64"></div>
+            <div class="h-4 bg-gray-200 rounded w-96"></div>
+            <div class="h-48 bg-gray-200 rounded-xl mt-6"></div>
+        </div>
+    </template>
+
+    <!-- Not found -->
+    <template x-if="!loading && notFound">
+        <div class="rounded-xl border border-gray-200 bg-white px-6 py-16 text-center shadow-sm">
+            <p class="text-sm text-gray-500 mb-4">Esecuzione non trovata.</p>
+            <a href="/storico.html" class="text-sm font-medium text-accent-600 hover:text-accent-800">Torna allo storico</a>
+        </div>
+    </template>
+
+    <!-- Detail -->
+    <template x-if="!loading && run">
+    <div>
+        <div class="mb-8">
+            <a href="/storico.html" class="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-navy-800 mb-3">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                Torna allo storico
+            </a>
+            <h1 class="text-2xl font-bold text-navy-800" x-text="'Risultati del ' + formatDate(run.started_at)"></h1>
+            <div class="mt-2 flex items-center gap-4">
+                <span :class="statusColor(run.status)" class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium" x-text="statusLabel(run.status)"></span>
+                <span class="text-sm text-gray-500">
+                    <span x-text="run.total_collected"></span> raccolti &middot;
+                    <span x-text="run.total_classified"></span> classificati &middot;
+                    <span x-text="run.total_relevant"></span> rilevanti
+                </span>
+                <span class="text-sm text-gray-400" x-text="formatDuration(run.elapsed_seconds)"></span>
+            </div>
+        </div>
+
+        <template x-if="results.length">
+        <div>
+            <!-- Filters + Export -->
+            <div class="mb-6 flex flex-wrap items-center gap-3">
+                <div class="flex gap-1 rounded-lg border border-gray-200 bg-white p-1">
+                    <button @click="typeFilter='all'" :class="typeFilter==='all'?'bg-navy-800 text-white':'text-gray-600 hover:bg-gray-100'" class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors">Tutti</button>
+                    <button @click="typeFilter='Bando'" :class="typeFilter==='Bando'?'bg-navy-800 text-white':'text-gray-600 hover:bg-gray-100'" class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors">Bandi</button>
+                    <button @click="typeFilter='Evento'" :class="typeFilter==='Evento'?'bg-navy-800 text-white':'text-gray-600 hover:bg-gray-100'" class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors">Eventi</button>
+                    <button @click="typeFilter='Concorso'" :class="typeFilter==='Concorso'?'bg-navy-800 text-white':'text-gray-600 hover:bg-gray-100'" class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors">Concorsi</button>
+                </div>
+                <div class="flex gap-1 rounded-lg border border-gray-200 bg-white p-1">
+                    <button @click="catFilter='all'" :class="catFilter==='all'?'bg-navy-800 text-white':'text-gray-600 hover:bg-gray-100'" class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors">Tutte</button>
+                    <button @click="catFilter='SAP'" :class="catFilter==='SAP'?'bg-navy-800 text-white':'text-gray-600 hover:bg-gray-100'" class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors">SAP</button>
+                    <button @click="catFilter='Data'" :class="catFilter==='Data'?'bg-navy-800 text-white':'text-gray-600 hover:bg-gray-100'" class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors">Data</button>
+                    <button @click="catFilter='AI'" :class="catFilter==='AI'?'bg-navy-800 text-white':'text-gray-600 hover:bg-gray-100'" class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors">AI</button>
+                    <button @click="catFilter='Cloud'" :class="catFilter==='Cloud'?'bg-navy-800 text-white':'text-gray-600 hover:bg-gray-100'" class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors">Cloud</button>
+                </div>
+                <div class="flex items-center gap-2">
+                    <label class="text-xs text-gray-500">Scadenza da</label>
+                    <input type="date" x-model="deadlineFrom" class="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 focus:border-accent-500 focus:ring-1 focus:ring-accent-500 outline-none">
+                    <label class="text-xs text-gray-500">a</label>
+                    <input type="date" x-model="deadlineTo" class="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 focus:border-accent-500 focus:ring-1 focus:ring-accent-500 outline-none">
+                </div>
+                <div x-data="{ exportOpen: false }" class="relative ml-auto">
+                    <button @click="exportOpen = !exportOpen" class="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        Esporta
+                        <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div x-show="exportOpen" @click.outside="exportOpen=false" x-transition class="absolute right-0 mt-1 w-36 rounded-lg border border-gray-200 bg-white py-1 shadow-lg z-10">
+                        <button @click="exportCsv(); exportOpen=false" class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">CSV</button>
+                        <button @click="exportHtml(); exportOpen=false" class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">HTML</button>
+                        <button @click="exportPdf(); exportOpen=false" class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">PDF</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results -->
+            <div class="space-y-4">
+                <template x-for="r in filteredResults" :key="r.id">
+                    <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-all hover:shadow-md">
+                        <div class="flex items-start justify-between gap-4">
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <span :class="scoreBadge(r.relevance_score)" class="inline-flex items-center justify-center h-7 w-7 rounded-lg text-xs font-bold" x-text="r.relevance_score"></span>
+                                    <h3 class="text-base font-semibold text-navy-800 truncate" x-text="r.title"></h3>
+                                </div>
+                                <p class="text-sm text-gray-600 line-clamp-2 mb-3" x-text="r.description"></p>
+                                <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
+                                    <span class="inline-flex items-center gap-1"><span :class="typeDot(r.opportunity_type)" class="h-1.5 w-1.5 rounded-full"></span> <span x-text="r.opportunity_type"></span></span>
+                                    <template x-if="r.category"><span class="rounded bg-gray-100 px-1.5 py-0.5 font-medium" x-text="r.category"></span></template>
+                                    <template x-if="r.contracting_authority"><span x-text="r.contracting_authority"></span></template>
+                                    <template x-if="r.country"><span x-text="r.country"></span></template>
+                                    <template x-if="r.deadline"><span class="font-medium" :class="isDeadlinePast(r.deadline)?'text-red-500':'text-navy-800'" x-text="'Scadenza: ' + formatDeadline(r.deadline)"></span></template>
+                                    <template x-if="r.estimated_value"><span class="font-medium text-navy-800" x-text="formatValue(r.estimated_value, r.currency)"></span></template>
+                                    <span class="text-gray-400" x-text="r.source"></span>
+                                </div>
+                            </div>
+                            <template x-if="r.source_url">
+                                <a :href="r.source_url" target="_blank" class="flex-shrink-0 rounded-lg border border-gray-200 p-2 text-gray-400 hover:border-accent-300 hover:text-accent-600 transition-colors">
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                </a>
+                            </template>
+                        </div>
+                        <template x-if="r.ai_reasoning">
+                            <div class="mt-4 rounded-lg bg-gray-50 px-4 py-3">
+                                <p class="text-xs font-medium text-gray-500 mb-1">Analisi AI</p>
+                                <p class="text-sm text-gray-700" x-text="r.ai_reasoning"></p>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+        </div>
+        </template>
+
+        <template x-if="!results.length">
+            <div class="rounded-xl border border-gray-200 bg-white px-6 py-16 text-center shadow-sm">
+                <p class="text-sm text-gray-500">Nessun risultato per questa esecuzione.</p>
+            </div>
+        </template>
+    </div>
+    </template>
+
+</div>
+</main>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

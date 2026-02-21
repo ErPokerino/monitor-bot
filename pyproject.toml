@@ -1,7 +1,7 @@
 [project]
 name = "monitor-bot"
-version = "0.1.0"
-description = "POC: Monitor public tenders and events relevant to an IT company"
+version = "0.2.0"
+description = "Enterprise web app for monitoring public tenders, events and funding opportunities"
 requires-python = ">=3.12"
 dependencies = [
     "httpx>=0.28",
@@ -12,10 +12,16 @@ dependencies = [
     "python-dotenv>=1.1",
     "feedparser>=6.0.12",
     "beautifulsoup4>=4.12",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "sqlalchemy[asyncio]>=2.0",
+    "aiosqlite>=0.21",
+    "python-multipart>=0.0.18",
 ]
 
 [project.scripts]
 monitor-bot = "monitor_bot.main:cli"
+monitor-web = "monitor_bot.app:main"
 
 [dependency-groups]
 dev = [

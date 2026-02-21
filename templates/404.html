@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Pagina non trovata - Monitor Bot{% endblock %}
+
+{% block content %}
+<div class="flex flex-col items-center justify-center py-20 text-center">
+    <div class="mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-gray-100">
+        <svg class="h-10 w-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M12 20a8 8 0 100-16 8 8 0 000 16z"/></svg>
+    </div>
+    <h1 class="text-2xl font-bold text-navy-800 mb-2">Pagina non trovata</h1>
+    <p class="text-sm text-gray-500 mb-6">La pagina richiesta non esiste o &egrave; stata rimossa.</p>
+    <a href="/" class="inline-flex items-center gap-2 rounded-lg bg-navy-800 px-6 py-2.5 text-sm font-semibold text-white hover:bg-navy-700">Torna alla Dashboard</a>
+</div>
+{% endblock %}

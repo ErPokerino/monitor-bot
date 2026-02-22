@@ -9,9 +9,10 @@ import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from google.genai import types
 
+from google import genai
+
 from monitor_bot.config import Settings
 from monitor_bot.database import async_session
-from monitor_bot.genai_client import create_genai_client
 from monitor_bot.routes.api_auth import validate_token
 from monitor_bot.routes.api_chat import _build_system_prompt
 
@@ -19,7 +20,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/chat", tags=["voice"])
 
-LIVE_MODEL = "gemini-2.5-flash-preview-native-audio-dialog"
+LIVE_MODEL = "gemini-live-2.5-flash-native-audio"
+LIVE_REGION = "europe-west4"
 
 
 @router.websocket("/voice")
@@ -36,7 +38,18 @@ async def voice_session(
     logger.info("Voice session opened (run_id=%s)", run_id)
 
     settings = Settings()
-    client = create_genai_client(settings)
+    if settings.gcp_project_id:
+        client = genai.Client(
+            vertexai=True,
+            project=settings.gcp_project_id,
+            location=LIVE_REGION,
+        )
+    elif settings.gemini_api_key:
+        client = genai.Client(api_key=settings.gemini_api_key)
+    else:
+        await ws.send_text(json.dumps({"type": "error", "message": "AI client not configured"}))
+        await ws.close()
+        return
 
     async with async_session() as db:
         system_prompt = await _build_system_prompt(db, run_id)

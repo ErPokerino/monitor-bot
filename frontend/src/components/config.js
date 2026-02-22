@@ -18,6 +18,8 @@ export function configPage() {
     // Settings
     settings: {},
     settingsSaved: false,
+    competencyTags: [],
+    newCompetency: '',
 
     async init() {
       await Promise.all([
@@ -133,12 +135,36 @@ export function configPage() {
 
     // ----- Settings -----
     async loadSettings() {
-      try { this.settings = await api.getSettings() }
-      catch { window.toast.error('Errore caricamento impostazioni') }
+      try {
+        this.settings = await api.getSettings()
+        this._syncTagsFromSettings()
+      } catch { window.toast.error('Errore caricamento impostazioni') }
+    },
+    _syncTagsFromSettings() {
+      const raw = this.settings.company_competencies || ''
+      this.competencyTags = raw.split(',').map(t => t.trim()).filter(Boolean)
+    },
+    _syncSettingsFromTags() {
+      this.settings.company_competencies = this.competencyTags.join(',')
+    },
+    addCompetency() {
+      const val = this.newCompetency.trim()
+      if (!val) return
+      if (!this.competencyTags.includes(val)) {
+        this.competencyTags.push(val)
+        this._syncSettingsFromTags()
+      }
+      this.newCompetency = ''
+    },
+    removeCompetency(idx) {
+      this.competencyTags.splice(idx, 1)
+      this._syncSettingsFromTags()
     },
     async saveSettings() {
       try {
+        this._syncSettingsFromTags()
         this.settings = await api.updateSettings(this.settings)
+        this._syncTagsFromSettings()
         this.settingsSaved = true
         window.toast.success('Impostazioni salvate')
         setTimeout(() => this.settingsSaved = false, 2000)

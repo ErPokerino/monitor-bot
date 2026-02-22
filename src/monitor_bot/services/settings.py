@@ -12,7 +12,6 @@ DEFAULTS: dict[str, str] = {
     "company_name": "",
     "company_sector": "IT Consulting & Services",
     "company_competencies": "SAP,Data Engineering,AI / Machine Learning,Cloud Infrastructure",
-    "company_certifications": "Certificazioni e track record per appalti pubblici in Italia e UE",
     "company_budget_min": "100000",
     "company_budget_max": "50000000",
     "company_regions": "Italia,EMEA",

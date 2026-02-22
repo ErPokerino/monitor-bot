@@ -1,7 +1,10 @@
-fix: use radar SVG logo in navbar, pre-populate company settings from config, enlarge description textarea
+feat: dashboard chart, tag-based competencies, remove certifications
 
-- Replace "OR" text with inline radar SVG icon in all 5 page navbars
-- Pre-fill company settings defaults with actual config.toml profile content (sector, competencies, certifications, full company description)
-- Add dedicated "Descrizione azienda" textarea (10 rows, resizable) for detailed company capabilities
-- Rename "Ambito di ricerca" to "Note aggiuntive per la ricerca" as secondary optional field
-- Include company_description in pipeline's company_profile sent to Gemini classifier
+Last commit with local deployment setup. Next steps: GCP migration
+(Cloud Run, Cloud SQL, Cloud Run Jobs, Terraform IaC).
+
+- Replace competencies text input with interactive tag UI
+- Remove certifications field from settings (frontend + backend)
+- Add Chart.js activity chart to dashboard (stacked bar, aggregated
+  by day, with relevance rate and total opportunities summary cards)
+- Increase dashboard recent runs to 10 for richer chart data

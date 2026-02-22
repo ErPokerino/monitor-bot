@@ -21,7 +21,7 @@ async def dashboard_stats(db: AsyncSession = Depends(get_session)):
     active_queries = await query_svc.count_queries(db, active_only=True)
     total_queries = await query_svc.count_queries(db)
     last_run = await run_svc.get_latest_run(db)
-    recent_runs = await run_svc.list_runs(db, limit=5)
+    recent_runs = await run_svc.list_runs(db, limit=10)
     running = await run_svc.get_running(db)
 
     return DashboardOut(

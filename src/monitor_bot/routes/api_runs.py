@@ -198,8 +198,6 @@ async def _execute_pipeline(run_id: int, settings: Settings) -> None:
             profile_parts.append(f"Settore: {all_settings['company_sector']}")
         if all_settings.get("company_competencies"):
             profile_parts.append(f"Competenze: {all_settings['company_competencies']}")
-        if all_settings.get("company_certifications"):
-            profile_parts.append(f"Certificazioni: {all_settings['company_certifications']}")
         budget_min = all_settings.get("company_budget_min", "")
         budget_max = all_settings.get("company_budget_max", "")
         if budget_min or budget_max:

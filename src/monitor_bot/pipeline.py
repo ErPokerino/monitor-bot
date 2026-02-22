@@ -231,43 +231,47 @@ def _patch_extracted_dates(classified: list[ClassifiedOpportunity]) -> None:
 # ------------------------------------------------------------------
 
 async def _collect(settings: Settings, progress: ProgressCallback) -> list[Opportunity]:
-    collectors: list[tuple[str, asyncio.coroutines]] = []
+    total_items = (
+        (1 if settings.enable_ted else 0)
+        + (1 if settings.enable_anac else 0)
+        + (len(settings.event_feeds) if settings.enable_events else 0)
+        + (len(settings.event_web_pages) if settings.enable_web_events else 0)
+        + (len(settings.web_tender_pages) if settings.enable_web_tenders else 0)
+        + (len(settings.web_search_queries) if settings.enable_web_search else 0)
+    )
 
+    completed_items = 0
+
+    def _on_item(label: str) -> None:
+        nonlocal completed_items
+        completed_items += 1
+        progress.on_item_progress(completed_items, total_items, label)
+
+    collectors: list[tuple[str, asyncio.coroutines]] = []
     if settings.enable_ted:
-        collectors.append(("TED", TEDCollector(settings).collect()))
+        collectors.append(("TED", TEDCollector(settings, on_item_done=_on_item).collect()))
     if settings.enable_anac:
-        collectors.append(("ANAC", ANACCollector(settings).collect()))
+        collectors.append(("ANAC", ANACCollector(settings, on_item_done=_on_item).collect()))
     if settings.enable_events:
-        collectors.append(("Events", EventsCollector(settings).collect()))
+        collectors.append(("Events", EventsCollector(settings, on_item_done=_on_item).collect()))
     if settings.enable_web_events:
-        collectors.append(("WebEvents", WebEventsCollector(settings).collect()))
+        collectors.append(("WebEvents", WebEventsCollector(settings, on_item_done=_on_item).collect()))
     if settings.enable_web_tenders:
-        collectors.append(("WebTenders", WebTendersCollector(settings).collect()))
+        collectors.append(("WebTenders", WebTendersCollector(settings, on_item_done=_on_item).collect()))
     if settings.enable_web_search:
-        collectors.append(("WebSearch", WebSearchCollector(settings).collect()))
+        collectors.append(("WebSearch", WebSearchCollector(settings, on_item_done=_on_item).collect()))
 
     if not collectors:
         logger.warning("All collectors are disabled")
         return []
 
     names = [c[0] for c in collectors]
-    total = len(collectors)
     progress.on_stage_begin(1, TOTAL_STAGES, " + ".join(names))
 
-    completed_count = 0
-
     async def _run_one(name: str, coro) -> list[Opportunity]:
-        nonlocal completed_count
         try:
-            result = await coro
-            completed_count += 1
-            progress.on_item_progress(
-                completed_count, total, f"{name}: {len(result)} trovati",
-            )
-            return result
+            return await coro
         except Exception as exc:
-            completed_count += 1
-            progress.on_item_progress(completed_count, total, f"{name}: errore")
             logger.error("Collector %s failed: %s", name, exc)
             return []
 

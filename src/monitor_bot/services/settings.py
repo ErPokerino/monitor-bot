@@ -2,13 +2,21 @@
 
 from __future__ import annotations
 
+import logging
+import os
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from monitor_bot.db_models import AppSetting
 
+logger = logging.getLogger(__name__)
+
 DEFAULTS: dict[str, str] = {
     "relevance_threshold": "6",
+    "scheduler_day": "1",
+    "scheduler_hour": "2",
+    "pipeline_timeout_minutes": "60",
     "company_name": "",
     "company_sector": "IT Consulting & Services",
     "company_competencies": "SAP,Data Engineering,AI / Machine Learning,Cloud Infrastructure",
@@ -49,6 +57,7 @@ async def get_value(db: AsyncSession, key: str) -> str | None:
 
 
 async def update_all(db: AsyncSession, data: dict[str, str]) -> dict[str, str]:
+    old_settings = await get_all(db)
     for key, value in data.items():
         setting = await db.get(AppSetting, key)
         if setting:
@@ -56,4 +65,46 @@ async def update_all(db: AsyncSession, data: dict[str, str]) -> dict[str, str]:
         else:
             db.add(AppSetting(key=key, value=str(value)))
     await db.commit()
+
+    new_day = data.get("scheduler_day", old_settings.get("scheduler_day", ""))
+    new_hour = data.get("scheduler_hour", old_settings.get("scheduler_hour", ""))
+    old_day = old_settings.get("scheduler_day", "")
+    old_hour = old_settings.get("scheduler_hour", "")
+    if (new_day != old_day or new_hour != old_hour) and new_day and new_hour:
+        await _sync_cloud_scheduler(int(new_day), int(new_hour))
+
     return await get_all(db)
+
+
+async def _sync_cloud_scheduler(day: int, hour: int) -> None:
+    """Update the Cloud Scheduler cron expression via REST API (GCP only)."""
+    project_id = os.environ.get("GCP_PROJECT_ID")
+    region = os.environ.get("GCP_REGION")
+    if not project_id or not region:
+        logger.debug("Not in GCP environment, skipping scheduler sync")
+        return
+
+    cron = f"0 {hour} * * {day}"
+    job_name = f"projects/{project_id}/locations/{region}/jobs/opportunity-radar-weekly"
+
+    try:
+        import google.auth
+        import google.auth.transport.requests
+        import httpx
+
+        credentials, _ = google.auth.default()
+        credentials.refresh(google.auth.transport.requests.Request())
+
+        async with httpx.AsyncClient() as client:
+            resp = await client.patch(
+                f"https://cloudscheduler.googleapis.com/v1/{job_name}",
+                json={"schedule": cron},
+                params={"updateMask": "schedule"},
+                headers={"Authorization": f"Bearer {credentials.token}"},
+            )
+            if resp.is_success:
+                logger.info("Cloud Scheduler updated to '%s'", cron)
+            else:
+                logger.warning("Cloud Scheduler update failed: %s %s", resp.status_code, resp.text)
+    except Exception:
+        logger.warning("Failed to sync Cloud Scheduler", exc_info=True)

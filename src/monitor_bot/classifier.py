@@ -7,10 +7,10 @@ import json
 import logging
 from typing import TYPE_CHECKING, Callable
 
-from google import genai
 from google.genai import types
 
 from monitor_bot.config import Settings
+from monitor_bot.genai_client import create_genai_client
 from monitor_bot.models import Classification, ClassifiedOpportunity, Opportunity
 
 if TYPE_CHECKING:
@@ -53,7 +53,7 @@ class GeminiClassifier:
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        self._client = genai.Client(api_key=settings.gemini_api_key)
+        self._client = create_genai_client(settings)
         self._model = settings.gemini_model
         self._system_prompt = _SYSTEM_PROMPT_TEMPLATE.format(
             company_profile=settings.company_profile or "Not specified.",

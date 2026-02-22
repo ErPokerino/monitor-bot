@@ -21,11 +21,11 @@ from urllib.parse import urljoin, urlparse
 
 import httpx
 from bs4 import BeautifulSoup
-from google import genai
 from google.genai import types
 
 from monitor_bot.collectors.base import BaseCollector
 from monitor_bot.config import Settings
+from monitor_bot.genai_client import create_genai_client
 from monitor_bot.models import Opportunity, OpportunityType, Source
 
 logger = logging.getLogger(__name__)
@@ -105,12 +105,12 @@ dati, SAP, innovazione digitale, pubblica amministrazione digitale.\
 class WebEventsCollector(BaseCollector):
     """Fetch IT events from HTML web pages using two-phase crawling."""
 
-    def __init__(self, settings: Settings) -> None:
-        super().__init__(settings)
+    def __init__(self, settings: Settings, **kwargs) -> None:
+        super().__init__(settings, **kwargs)
         self._http_client = httpx.AsyncClient(
             timeout=30.0, follow_redirects=True, headers=_HEADERS,
         )
-        self._gemini_client = genai.Client(api_key=settings.gemini_api_key)
+        self._gemini_client = create_genai_client(settings)
         self._model = settings.gemini_model
         self._pages = settings.event_web_pages
 
@@ -167,11 +167,13 @@ class WebEventsCollector(BaseCollector):
                     if normalised not in seen_urls:
                         seen_urls.add(normalised)
                         all_discovered.append(link)
+                self._report_item(f"WebEvents: {len(links)} link da {seed_url[:40]}")
             except Exception:
                 logger.warning(
                     "WebEvents: discovery failed for seed %s", seed_url,
                     exc_info=True,
                 )
+                self._report_item(f"WebEvents: errore {seed_url[:40]}")
 
             if idx < len(self._pages) - 1:
                 await asyncio.sleep(_RATE_LIMIT_DELAY)

@@ -32,6 +32,16 @@ async def create_source(
     return await svc.create_source(db, data)
 
 
+@router.post("/toggle-all")
+async def toggle_all_sources(
+    body: dict,
+    db: AsyncSession = Depends(get_session),
+):
+    active = bool(body.get("active", True))
+    count = await svc.set_all_active(db, active=active)
+    return {"updated": count, "active": active}
+
+
 @router.get("/{source_id}", response_model=SourceOut)
 async def get_source(
     source_id: int,

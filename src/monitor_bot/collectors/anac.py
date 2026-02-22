@@ -47,8 +47,8 @@ _MAX_RELEASES_PER_FILE = 500    # stop parsing a file after this many IT-matchin
 class ANACCollector(BaseCollector):
     """Fetch IT-related procurement notices from ANAC Open Data (OCDS)."""
 
-    def __init__(self, settings: Settings) -> None:
-        super().__init__(settings)
+    def __init__(self, settings: Settings, **kwargs) -> None:
+        super().__init__(settings, **kwargs)
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(30.0, read=_STREAM_TIMEOUT),
             follow_redirects=True,
@@ -61,9 +61,11 @@ class ANACCollector(BaseCollector):
             releases = await self._fetch_releases()
             opportunities = self._normalise(releases)
             logger.info("ANAC: collected %d opportunities", len(opportunities))
+            self._report_item(f"ANAC: {len(opportunities)} trovati")
             return opportunities
         except Exception:
             logger.exception("ANAC: collection failed")
+            self._report_item("ANAC: errore")
             return []
         finally:
             await self._client.aclose()

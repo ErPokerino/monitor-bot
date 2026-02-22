@@ -70,8 +70,8 @@ _COUNTRY_MAP: dict[str, str] = {
 class TEDCollector(BaseCollector):
     """Fetch IT-related procurement notices from TED."""
 
-    def __init__(self, settings: Settings) -> None:
-        super().__init__(settings)
+    def __init__(self, settings: Settings, **kwargs) -> None:
+        super().__init__(settings, **kwargs)
         self._client = httpx.AsyncClient(timeout=60.0)
 
     async def collect(self) -> list[Opportunity]:
@@ -80,9 +80,11 @@ class TEDCollector(BaseCollector):
             raw_notices = await self._search_notices()
             opportunities = self._normalise(raw_notices)
             logger.info("TED: collected %d opportunities", len(opportunities))
+            self._report_item(f"TED: {len(opportunities)} trovati")
             return opportunities
         except Exception:
             logger.exception("TED: collection failed")
+            self._report_item("TED: errore")
             return []
         finally:
             await self._client.aclose()

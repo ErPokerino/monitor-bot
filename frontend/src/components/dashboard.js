@@ -9,18 +9,59 @@ export function dashboardPage() {
     loading: true,
     stats: null,
     recentRuns: [],
+    allRuns: [],
     _chart: null,
+    selectedIds: new Set(),
+    selectAll: false,
 
     async init() {
       try {
-        const data = await api.getDashboard()
+        const [data, runs] = await Promise.all([
+          api.getDashboard(),
+          api.getRuns(),
+        ])
         this.stats = data
         this.recentRuns = data.recent_runs || []
+        this.allRuns = runs || []
         this.$nextTick(() => this._renderChart())
       } catch (e) {
         window.toast.error('Errore nel caricamento della dashboard')
       } finally {
         this.loading = false
+      }
+    },
+
+    toggleSelectAll() {
+      if (this.selectAll) {
+        this.selectedIds = new Set(this.allRuns.map(r => r.id))
+      } else {
+        this.selectedIds = new Set()
+      }
+    },
+    toggleSelect(id) {
+      const next = new Set(this.selectedIds)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      this.selectedIds = next
+      this.selectAll = next.size === this.allRuns.length
+    },
+    isSelected(id) { return this.selectedIds.has(id) },
+    get selectionCount() { return this.selectedIds.size },
+
+    async deleteSelected() {
+      if (!this.selectionCount) return
+      if (!confirm(`Eliminare ${this.selectionCount} esecuzione/i?`)) return
+      try {
+        const ids = Array.from(this.selectedIds)
+        await api.deleteRunsBatch(ids)
+        this.allRuns = this.allRuns.filter(r => !this.selectedIds.has(r.id))
+        this.recentRuns = this.recentRuns.filter(r => !this.selectedIds.has(r.id))
+        window.toast.success(`${ids.length} esecuzione/i eliminate`)
+        this.selectedIds = new Set()
+        this.selectAll = false
+        this.$nextTick(() => this._renderChart())
+      } catch {
+        window.toast.error("Errore nell'eliminazione")
       }
     },
 

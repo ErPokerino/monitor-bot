@@ -15,6 +15,7 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.34",
     "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.30",
     "aiosqlite>=0.21",
     "python-multipart>=0.0.18",
 ]
@@ -22,6 +23,7 @@ dependencies = [
 [project.scripts]
 monitor-bot = "monitor_bot.main:cli"
 monitor-web = "monitor_bot.app:main"
+monitor-job = "monitor_bot.job:main"
 
 [dependency-groups]
 dev = [

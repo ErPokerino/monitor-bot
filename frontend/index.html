@@ -154,33 +154,42 @@
         </div>
         </template>
 
-        <!-- Recent runs table -->
-        <template x-if="recentRuns.length">
+        <!-- All runs table -->
+        <template x-if="allRuns.length">
         <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
-            <div class="border-b border-gray-200 px-6 py-4">
-                <h2 class="text-lg font-semibold text-navy-800">Esecuzioni recenti</h2>
+            <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-navy-800">Storico esecuzioni</h2>
+                <div x-show="selectionCount > 0" class="flex items-center gap-3">
+                    <span class="text-sm text-gray-500"><span x-text="selectionCount"></span> selezionate</span>
+                    <button @click="deleteSelected()" class="inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        Elimina
+                    </button>
+                </div>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full">
                     <thead>
                         <tr class="border-b border-gray-100 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                            <th class="px-6 py-3">Data</th>
-                            <th class="px-6 py-3">Stato</th>
-                            <th class="px-6 py-3">Raccolti</th>
-                            <th class="px-6 py-3">Rilevanti</th>
-                            <th class="px-6 py-3">Durata</th>
-                            <th class="px-6 py-3"></th>
+                            <th class="pl-6 py-3 w-8"><input type="checkbox" x-model="selectAll" @change="toggleSelectAll()" class="rounded border-gray-300"></th>
+                            <th class="px-4 py-3">Data</th>
+                            <th class="px-4 py-3">Stato</th>
+                            <th class="px-4 py-3">Raccolti</th>
+                            <th class="px-4 py-3">Rilevanti</th>
+                            <th class="px-4 py-3">Durata</th>
+                            <th class="px-4 py-3 pr-6"></th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
-                        <template x-for="run in recentRuns" :key="run.id">
+                        <template x-for="run in allRuns" :key="run.id">
                             <tr class="hover:bg-gray-50 transition-colors">
-                                <td class="px-6 py-4 text-sm font-medium text-gray-900" x-text="formatDate(run.started_at)"></td>
-                                <td class="px-6 py-4"><span :class="statusColor(run.status)" class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium" x-text="statusLabel(run.status)"></span></td>
-                                <td class="px-6 py-4 text-sm text-gray-600" x-text="run.total_collected"></td>
-                                <td class="px-6 py-4 text-sm font-semibold text-navy-800" x-text="run.total_relevant"></td>
-                                <td class="px-6 py-4 text-sm text-gray-500" x-text="formatDuration(run.elapsed_seconds)"></td>
-                                <td class="px-6 py-4 text-right"><a :href="'/dettaglio.html?id=' + run.id" class="text-sm font-medium text-accent-600 hover:text-accent-800">Dettagli</a></td>
+                                <td class="pl-6 py-4"><input type="checkbox" :checked="isSelected(run.id)" @change="toggleSelect(run.id)" class="rounded border-gray-300"></td>
+                                <td class="px-4 py-4 text-sm font-medium text-gray-900" x-text="formatDate(run.started_at)"></td>
+                                <td class="px-4 py-4"><span :class="statusColor(run.status)" class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium" x-text="statusLabel(run.status)"></span></td>
+                                <td class="px-4 py-4 text-sm text-gray-600" x-text="run.total_collected"></td>
+                                <td class="px-4 py-4 text-sm font-semibold text-navy-800" x-text="run.total_relevant"></td>
+                                <td class="px-4 py-4 text-sm text-gray-500" x-text="formatDuration(run.elapsed_seconds)"></td>
+                                <td class="px-4 py-4 pr-6 text-right"><a :href="'/dettaglio.html?id=' + run.id" class="text-sm font-medium text-accent-600 hover:text-accent-800">Dettagli</a></td>
                             </tr>
                         </template>
                     </tbody>

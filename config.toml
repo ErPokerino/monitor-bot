@@ -14,8 +14,8 @@
 
 [gemini]
 # Modello Gemini da usare per classificazione e analisi.
-# Opzioni: gemini-3-flash-preview (veloce), gemini-3-pro-preview (accurato)
-model = "gemini-3-flash-preview"
+# Opzioni: gemini-2.5-flash (veloce), gemini-2.5-pro (accurato)
+model = "gemini-2.5-flash"
 
 [classification]
 # Punteggio minimo di rilevanza (1-10) per includere nel report

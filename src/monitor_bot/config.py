@@ -35,7 +35,10 @@ class Secrets(BaseSettings):
         extra="ignore",
     )
 
-    gemini_api_key: str = Field(description="Google Gemini API key")
+    gemini_api_key: str = Field(default="", description="Google Gemini API key (not needed with Vertex AI)")
+    gcp_project_id: str = Field(default="", description="GCP project ID for Vertex AI")
+    gcp_region: str = Field(default="europe-west1", description="GCP region for Vertex AI")
+    database_url: str = Field(default="", description="PostgreSQL async connection string")
     smtp_host: str | None = Field(default=None)
     smtp_port: int = Field(default=587)
     smtp_user: str | None = Field(default=None)
@@ -58,6 +61,8 @@ class Settings:
 
         # --- Secrets ---
         self.gemini_api_key: str = self._secrets.gemini_api_key
+        self.gcp_project_id: str = self._secrets.gcp_project_id
+        self.gcp_region: str = self._secrets.gcp_region
         self.smtp_host: str | None = self._secrets.smtp_host
         self.smtp_port: int = self._secrets.smtp_port
         self.smtp_user: str | None = self._secrets.smtp_user
@@ -65,7 +70,7 @@ class Settings:
 
         # --- Gemini ---
         gemini = self._cfg.get("gemini", {})
-        self.gemini_model: str = gemini.get("model", "gemini-3-flash-preview")
+        self.gemini_model: str = gemini.get("model", "gemini-2.5-flash")
 
         # --- Classification ---
         classification = self._cfg.get("classification", {})

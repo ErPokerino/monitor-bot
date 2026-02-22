@@ -10,11 +10,13 @@ const STAGE_NAMES = {
   6: 'Finalizzazione',
 }
 
+const POLL_INTERVAL_MS = 3000
+
 export function pipelineRunner() {
   return {
     state: 'loading',
     runId: null,
-    ws: null,
+    _pollTimer: null,
     stopping: false,
     stageLabel: 'Inizializzazione...',
     overallPct: 0,
@@ -30,7 +32,7 @@ export function pipelineRunner() {
         if (status.running) {
           this.state = 'running'
           this.runId = status.run_id
-          this.connectWs()
+          this._startPolling()
         } else {
           this.state = 'idle'
         }
@@ -46,7 +48,7 @@ export function pipelineRunner() {
       try {
         const data = await api.startRun()
         this.runId = data.id
-        this.connectWs()
+        this._startPolling()
       } catch (e) {
         this.state = 'error'
         this.finishSummary = e.message || 'Errore avvio pipeline'
@@ -60,58 +62,76 @@ export function pipelineRunner() {
       catch { this.stopping = false }
     },
 
-    connectWs() {
-      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
-      this.ws = new WebSocket(`${proto}//${location.host}/api/runs/ws`)
-      this.ws.onmessage = (e) => this.handleWsMessage(JSON.parse(e.data))
-      this.ws.onclose = () => {
-        if (this.state === 'running') setTimeout(() => this.connectWs(), 2000)
+    _startPolling() {
+      this._stopPolling()
+      this._pollTimer = setInterval(() => this._poll(), POLL_INTERVAL_MS)
+      this._poll()
+    },
+
+    _stopPolling() {
+      if (this._pollTimer) {
+        clearInterval(this._pollTimer)
+        this._pollTimer = null
       }
     },
 
-    handleWsMessage(msg) {
-      switch (msg.type) {
-        case 'stage_begin':
-          this.stages = this.stages.map(s =>
-            s.id === msg.stage ? { ...s, status: 'running', summary: msg.detail } : s
+    async _poll() {
+      if (!this.runId) return
+      try {
+        const data = await api.getRunProgress(this.runId)
+        this._applyProgress(data)
+      } catch {
+        // ignore transient errors
+      }
+    },
+
+    _applyProgress(data) {
+      const p = data.progress || {}
+
+      if (p.stages) {
+        for (const s of p.stages) {
+          this.stages = this.stages.map(existing =>
+            existing.id === s.id
+              ? { ...existing, status: s.status, summary: s.summary || s.detail || '', elapsed: s.elapsed_seconds ?? null }
+              : existing
           )
-          this.stageLabel = `${STAGE_NAMES[msg.stage] || 'Fase ' + msg.stage} — ${msg.detail}`
-          this.overallPct = Math.round(((msg.stage - 1) / msg.total_stages) * 100)
-          this.itemCurrent = 0
-          this.itemTotal = 0
-          break
+        }
+      }
 
-        case 'stage_end':
-          this.stages = this.stages.map(s =>
-            s.id === msg.stage
-              ? { ...s, status: 'done', summary: msg.summary, elapsed: msg.elapsed_seconds }
-              : s
-          )
-          this.overallPct = Math.round((msg.stage / msg.total_stages) * 100)
-          break
+      if (p.current_stage && p.total_stages) {
+        const name = STAGE_NAMES[p.current_stage] || 'Fase ' + p.current_stage
+        this.stageLabel = `${name} — ${p.stage_detail || ''}`
+        const doneStages = (p.stages || []).filter(s => s.status === 'done').length
+        this.overallPct = Math.round((doneStages / p.total_stages) * 100)
+      }
 
-        case 'item_progress':
-          this.itemCurrent = msg.current
-          this.itemTotal = msg.total
-          this.itemLabel = msg.label
-          if (this.stages.find(s => s.status === 'running')?.id === 1) {
-            const base = 0
-            const stageSpan = 100 / 6
-            this.overallPct = Math.round(base + (msg.current / msg.total) * stageSpan)
-          }
-          break
+      if (p.item_current != null) {
+        this.itemCurrent = p.item_current
+        this.itemTotal = p.item_total || 0
+        this.itemLabel = p.item_label || ''
+        if (p.current_stage === 1 && p.total_stages && p.item_total > 0) {
+          const stageSpan = 100 / p.total_stages
+          this.overallPct = Math.round((p.item_current / p.item_total) * stageSpan)
+        }
+      }
 
-        case 'finished':
-          this.state = this.stopping ? 'cancelled' : 'completed'
-          this.overallPct = this.stopping ? this.overallPct : 100
-          this.finishSummary = msg.summary
-          this.stopping = false
-          if (this.ws) this.ws.close()
-          break
+      if (p.finished || data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') {
+        this._stopPolling()
+        if (data.status === 'cancelled') {
+          this.state = 'cancelled'
+        } else if (data.status === 'failed') {
+          this.state = 'error'
+        } else {
+          this.state = 'completed'
+          this.overallPct = 100
+        }
+        this.finishSummary = p.finish_summary || ''
+        this.stopping = false
       }
     },
 
     reset() {
+      this._stopPolling()
       this.state = 'idle'
       this.runId = null
       this.overallPct = 0

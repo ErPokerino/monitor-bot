@@ -9,3 +9,12 @@ output/
 data/
 frontend/node_modules/
 frontend/dist/
+
+# Terraform
+infra/.terraform/
+infra/*.tfstate*
+infra/.terraform.lock.hcl
+terraform-sa-key.json
+
+# IDE
+.cursor/

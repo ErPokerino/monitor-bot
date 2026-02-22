@@ -20,10 +20,9 @@ Alpine.data('navbar', () => {
   return {
     mobileOpen: false,
     links: [
-      { href: '/',                    label: 'Dashboard',      active: path === '/' || path === '/index.html' },
+      { href: '/',                    label: 'Dashboard',      active: path === '/' || path === '/index.html' || path.startsWith('/dettaglio') },
       { href: '/configurazioni.html', label: 'Configurazioni', active: path === '/configurazioni.html' },
       { href: '/esegui.html',         label: 'Esegui',         active: path === '/esegui.html' },
-      { href: '/storico.html',        label: 'Storico',        active: path.startsWith('/storico') || path.startsWith('/dettaglio') },
     ],
   }
 })

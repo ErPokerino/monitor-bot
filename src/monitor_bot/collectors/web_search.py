@@ -20,11 +20,11 @@ from urllib.parse import urlparse
 
 import httpx
 from bs4 import BeautifulSoup
-from google import genai
 from google.genai import types
 
 from monitor_bot.collectors.base import BaseCollector
 from monitor_bot.config import Settings
+from monitor_bot.genai_client import create_genai_client
 from monitor_bot.models import Opportunity, OpportunityType, Source
 
 logger = logging.getLogger(__name__)
@@ -96,9 +96,9 @@ Se la pagina NON contiene un bando o evento rilevante, restituisci:
 class WebSearchCollector(BaseCollector):
     """Discover tenders and events via Google Search using Gemini grounding."""
 
-    def __init__(self, settings: Settings) -> None:
-        super().__init__(settings)
-        self._gemini_client = genai.Client(api_key=settings.gemini_api_key)
+    def __init__(self, settings: Settings, **kwargs) -> None:
+        super().__init__(settings, **kwargs)
+        self._gemini_client = create_genai_client(settings)
         self._model = settings.gemini_model
         self._queries = settings.web_search_queries
         self._max_per_query = settings.web_search_max_per_query
@@ -165,12 +165,14 @@ class WebSearchCollector(BaseCollector):
                     "WebSearch: [%d/%d] query '%s' -> %d result(s)",
                     idx + 1, len(self._queries), query[:50], len(results),
                 )
+                self._report_item(f"Ricerca: '{query[:35]}' → {len(results)} risultati")
             except Exception:
                 logger.warning(
                     "WebSearch: [%d/%d] search failed for '%s'",
                     idx + 1, len(self._queries), query[:50],
                     exc_info=True,
                 )
+                self._report_item(f"Ricerca: '{query[:35]}' errore")
 
             if idx < len(self._queries) - 1:
                 await asyncio.sleep(_RATE_LIMIT_DELAY)

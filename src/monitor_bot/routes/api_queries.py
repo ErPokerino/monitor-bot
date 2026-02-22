@@ -32,6 +32,16 @@ async def create_query(
     return await svc.create_query(db, data)
 
 
+@router.post("/toggle-all")
+async def toggle_all_queries(
+    body: dict,
+    db: AsyncSession = Depends(get_session),
+):
+    active = bool(body.get("active", True))
+    count = await svc.set_all_active(db, active=active)
+    return {"updated": count, "active": active}
+
+
 @router.get("/{query_id}", response_model=QueryOut)
 async def get_query(
     query_id: int,

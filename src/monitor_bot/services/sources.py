@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from monitor_bot.db_models import MonitoredSource, SourceCategory
@@ -79,6 +79,14 @@ async def count_sources(db: AsyncSession, *, active_only: bool = False) -> int:
         stmt = stmt.where(MonitoredSource.is_active.is_(True))
     result = await db.execute(stmt)
     return result.scalar_one()
+
+
+async def set_all_active(db: AsyncSession, *, active: bool) -> int:
+    result = await db.execute(
+        sa_update(MonitoredSource).values(is_active=active)
+    )
+    await db.commit()
+    return result.rowcount
 
 
 async def source_url_exists(db: AsyncSession, url: str) -> bool:

@@ -73,8 +73,8 @@ _EVENT_KEYWORDS = [
 class EventsCollector(BaseCollector):
     """Fetch IT-relevant events from RSS/Atom feeds."""
 
-    def __init__(self, settings: Settings) -> None:
-        super().__init__(settings)
+    def __init__(self, settings: Settings, **kwargs) -> None:
+        super().__init__(settings, **kwargs)
         self._client = httpx.AsyncClient(
             timeout=30.0, follow_redirects=True, headers=_HEADERS,
         )
@@ -83,7 +83,17 @@ class EventsCollector(BaseCollector):
     async def collect(self) -> list[Opportunity]:
         logger.info("Events: starting collection from %d feeds", len(self._feeds))
         max_results = self.settings.max_results
-        tasks = [self._fetch_feed(feed) for feed in self._feeds]
+
+        async def _fetch_and_report(feed):
+            try:
+                result = await self._fetch_feed(feed)
+                self._report_item(f"Feed: {len(result)} elementi")
+                return result
+            except Exception as e:
+                self._report_item(f"Feed: errore")
+                raise e
+
+        tasks = [_fetch_and_report(feed) for feed in self._feeds]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         opportunities: list[Opportunity] = []

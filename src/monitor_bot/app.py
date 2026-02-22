@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import update
 
 from monitor_bot.config import Settings
@@ -24,13 +27,11 @@ from monitor_bot.seed import seed_defaults
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+STATIC_DIR = Path(os.environ.get("STATIC_DIR", PROJECT_ROOT / "static"))
 
 
 def _configure_logging() -> None:
-    """Set up root logger with both stream and file handlers."""
-    log_dir = PROJECT_ROOT / "data"
-    log_dir.mkdir(parents=True, exist_ok=True)
-
+    """Set up root logger with stream handler (and file handler in local dev)."""
     fmt = logging.Formatter(
         "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
         datefmt="%H:%M:%S",
@@ -44,9 +45,12 @@ def _configure_logging() -> None:
         sh.setFormatter(fmt)
         root.addHandler(sh)
 
-    fh = logging.FileHandler(str(log_dir / "server.log"), encoding="utf-8")
-    fh.setFormatter(fmt)
-    root.addHandler(fh)
+    if os.environ.get("LOG_TO_FILE", "1") == "1":
+        log_dir = PROJECT_ROOT / "data"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        fh = logging.FileHandler(str(log_dir / "server.log"), encoding="utf-8")
+        fh.setFormatter(fmt)
+        root.addHandler(fh)
 
 
 @asynccontextmanager
@@ -59,7 +63,8 @@ async def lifespan(app: FastAPI):
         await seed_defaults(db, settings)
         await _cleanup_orphaned_runs(db)
 
-    logger.info("Monitor Bot API ready at http://localhost:8000")
+    port = os.environ.get("PORT", "8000")
+    logger.info("Opportunity Radar API ready on port %s", port)
     yield
 
     from monitor_bot.routes.api_runs import _current_task
@@ -87,9 +92,9 @@ async def _cleanup_orphaned_runs(db) -> None:
 
 def create_app() -> FastAPI:
     app = FastAPI(
-        title="Monitor Bot",
+        title="Opportunity Radar",
         description="Enterprise monitoring for tenders, events, and funding opportunities",
-        version="0.3.0",
+        version="0.4.0",
         lifespan=lifespan,
     )
 
@@ -107,7 +112,30 @@ def create_app() -> FastAPI:
     app.include_router(runs_router)
     app.include_router(settings_router)
 
+    if STATIC_DIR.is_dir():
+        _mount_frontend(app)
+
     return app
+
+
+def _mount_frontend(app: FastAPI) -> None:
+    """Serve the Vite production build and provide SPA-style HTML fallback."""
+    html_files = {f"/{f.name}" for f in STATIC_DIR.glob("*.html")}
+
+    @app.middleware("http")
+    async def _spa_fallback(request: Request, call_next):
+        path = request.url.path
+        if path.startswith("/api") or path.startswith("/docs") or path.startswith("/openapi"):
+            return await call_next(request)
+        file = STATIC_DIR / path.lstrip("/")
+        if file.is_file():
+            return FileResponse(file)
+        if path in html_files or path == "/":
+            target = "index.html" if path == "/" else path.lstrip("/")
+            return FileResponse(STATIC_DIR / target)
+        return await call_next(request)
+
+    app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="static-assets")
 
 
 app = create_app()
@@ -116,11 +144,13 @@ app = create_app()
 def main() -> None:
     """Entry point for ``uv run monitor-web``."""
     import uvicorn
+
+    port = int(os.environ.get("PORT", "8000"))
     uvicorn.run(
         "monitor_bot.app:app",
         host="0.0.0.0",
-        port=8000,
-        reload=True,
+        port=port,
+        reload=os.environ.get("ENV", "development") == "development",
     )
 
 

@@ -19,6 +19,7 @@ from google import genai
 from google.genai import types
 
 from monitor_bot.config import Settings
+from monitor_bot.genai_client import create_genai_client
 from monitor_bot.models import ClassifiedOpportunity
 
 from typing import TYPE_CHECKING
@@ -87,7 +88,7 @@ async def enrich_missing_dates(
         len(missing), len(classified),
     )
 
-    gemini_client = genai.Client(api_key=settings.gemini_api_key)
+    gemini_client = create_genai_client(settings)
     model = settings.gemini_model
 
     async with httpx.AsyncClient(

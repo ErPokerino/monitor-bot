@@ -68,6 +68,16 @@ export function configPage() {
         s.is_active = updated.is_active
       } catch { window.toast.error('Errore nel cambio stato') }
     },
+    get allSourcesActive() {
+      return this.sources.length > 0 && this.sources.every(s => s.is_active)
+    },
+    async toggleAllSources(active) {
+      try {
+        await api.toggleAllSources(active)
+        this.sources.forEach(s => s.is_active = active)
+        window.toast.success(active ? 'Tutti i link attivati' : 'Tutti i link disattivati')
+      } catch { window.toast.error('Errore nel cambio stato') }
+    },
     async deleteSource(s) {
       if (!confirm('Eliminare questo link?')) return
       try {
@@ -118,6 +128,16 @@ export function configPage() {
       try {
         const updated = await api.toggleQuery(q.id)
         q.is_active = updated.is_active
+      } catch { window.toast.error('Errore nel cambio stato') }
+    },
+    get allQueriesActive() {
+      return this.queries.length > 0 && this.queries.every(q => q.is_active)
+    },
+    async toggleAllQueries(active) {
+      try {
+        await api.toggleAllQueries(active)
+        this.queries.forEach(q => q.is_active = active)
+        window.toast.success(active ? 'Tutte le ricerche attivate' : 'Tutte le ricerche disattivate')
       } catch { window.toast.error('Errore nel cambio stato') }
     },
     async deleteQuery(q) {
@@ -188,5 +208,18 @@ export function configPage() {
       const m = { rss_feed: 'RSS', web_page: 'Web', tender_portal: 'Portale' }
       return m[t] || t
     },
+    schedulerDays: [
+      { value: '1', label: 'Lunedì' },
+      { value: '2', label: 'Martedì' },
+      { value: '3', label: 'Mercoledì' },
+      { value: '4', label: 'Giovedì' },
+      { value: '5', label: 'Venerdì' },
+      { value: '6', label: 'Sabato' },
+      { value: '0', label: 'Domenica' },
+    ],
+    schedulerHours: Array.from({ length: 24 }, (_, i) => ({
+      value: String(i),
+      label: String(i).padStart(2, '0') + ':00',
+    })),
   }
 }

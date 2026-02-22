@@ -18,7 +18,7 @@
 # ===========================================================================
 
 [gemini]
-model = "gemini-3-flash-preview"
+model = "gemini-2.5-flash"
 
 [classification]
 relevance_threshold = 6

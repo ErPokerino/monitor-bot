@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from monitor_bot.db_models import SearchQuery, SourceCategory
@@ -78,6 +78,14 @@ async def count_queries(db: AsyncSession, *, active_only: bool = False) -> int:
         stmt = stmt.where(SearchQuery.is_active.is_(True))
     result = await db.execute(stmt)
     return result.scalar_one()
+
+
+async def set_all_active(db: AsyncSession, *, active: bool) -> int:
+    result = await db.execute(
+        sa_update(SearchQuery).values(is_active=active)
+    )
+    await db.commit()
+    return result.rowcount
 
 
 async def query_text_exists(db: AsyncSession, text: str) -> bool:

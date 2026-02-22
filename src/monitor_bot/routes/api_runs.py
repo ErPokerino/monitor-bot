@@ -206,6 +206,8 @@ async def _execute_pipeline(run_id: int, settings: Settings) -> None:
             profile_parts.append(f"Budget target: {budget_min} - {budget_max} EUR")
         if all_settings.get("company_regions"):
             profile_parts.append(f"Regioni operative: {all_settings['company_regions']}")
+        if all_settings.get("company_description"):
+            profile_parts.append(f"\n{all_settings['company_description']}")
         if all_settings.get("search_scope_description"):
             profile_parts.append(f"Ambito ricerca: {all_settings['search_scope_description']}")
         if profile_parts:

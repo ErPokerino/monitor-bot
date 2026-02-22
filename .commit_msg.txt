@@ -1,0 +1,7 @@
+fix: use radar SVG logo in navbar, pre-populate company settings from config, enlarge description textarea
+
+- Replace "OR" text with inline radar SVG icon in all 5 page navbars
+- Pre-fill company settings defaults with actual config.toml profile content (sector, competencies, certifications, full company description)
+- Add dedicated "Descrizione azienda" textarea (10 rows, resizable) for detailed company capabilities
+- Rename "Ambito di ricerca" to "Note aggiuntive per la ricerca" as secondary optional field
+- Include company_description in pipeline's company_profile sent to Gemini classifier

@@ -14,7 +14,7 @@ Monitor Bot è un sistema di monitoraggio automatico pensato per aziende IT che 
 
 ### 1.3 Contesto d'uso
 
-Il sistema viene eseguito periodicamente (es. schedulato con cron/Task Scheduler) e produce un report HTML. L'utente può consultare il report localmente o riceverlo via email.
+Il sistema e' disponibile come web application enterprise con autenticazione. L'utente accede tramite login, viene guidato da un onboarding carousel alla prima visita, e puo' interagire con tutte le funzionalita' tramite interfaccia web. Il sistema puo' essere eseguito anche periodicamente (batch job schedulato) con notifica email dei risultati. Un chatbot AI integrato (con supporto voice mode) assiste l'utente nell'analisi dei risultati.
 
 ---
 
@@ -84,6 +84,36 @@ Il report HTML include:
 - Ripartizione per categoria
 - Card per ogni opportunità con: titolo, data/scadenza, ente, valore, motivazione AI, link alla fonte
 - Tempo di esecuzione nel footer
+
+### 2.8 Autenticazione
+
+L'accesso all'applicazione richiede autenticazione tramite username e password. Dopo il login, viene generato un token di sessione che viene utilizzato per tutte le richieste API successive. In caso di token scaduto o non valido, l'utente viene reindirizzato alla pagina di login.
+
+### 2.9 Onboarding
+
+Al primo accesso dopo il login, viene presentato un carousel di benvenuto con 4 slide:
+1. **Benvenuto**: introduzione a Opportunity Radar
+2. **Dashboard e Storico**: come consultare statistiche e risultati
+3. **Settings e Configurazioni**: come configurare fonti, profilo e schedulazione
+4. **Bot e Voice Mode**: come utilizzare il chatbot AI e la conversazione vocale
+
+L'utente puo' navigare tra le slide, saltare l'onboarding o completarlo. La scelta viene memorizzata e l'onboarding non viene riproposto nelle visite successive.
+
+### 2.10 Chatbot AI (Opportunity Bot)
+
+Il chatbot AI integrato permette di:
+- Comprendere il funzionamento dell'applicazione
+- Analizzare i risultati delle esecuzioni in linguaggio naturale
+- Ottenere dettagli su singoli bandi, eventi e opportunita'
+- Avviare nuove ricerche tramite conversazione
+
+Il contesto della conversazione include automaticamente le configurazioni, lo storico esecuzioni e i risultati dell'esecuzione selezionata.
+
+### 2.11 Voice Mode
+
+La modalita' vocale utilizza Gemini Live native audio per conversazioni in tempo reale. L'audio viene processato nativamente dal modello AI (senza passaggi intermedi STT/TTS), risultando in conversazioni naturali e fluenti in italiano.
+
+Per attivare il voice mode, l'utente clicca il pulsante microfono nella pagina chatbot. Viene mostrato un overlay fullscreen con indicatore di stato. L'utente parla naturalmente e riceve risposte audio immediate. I transcript delle conversazioni vengono salvati nella chat.
 
 ---
 
@@ -164,6 +194,44 @@ Il report HTML include:
 2. Il sistema carica i dati dalla cache
 3. Riprende dalla classificazione (o dalla fase successiva)
 4. Evita di rifare la raccolta e le classificazioni già completate
+
+### UC8 – Accesso all'applicazione
+
+**Attore**: Utente  
+**Precondizione**: Credenziali valide  
+**Flusso**:
+1. L'utente accede a `/login.html`
+2. Inserisce username e password
+3. Il sistema valida le credenziali e genera un token di sessione
+4. L'utente viene reindirizzato alla Dashboard
+5. Al primo accesso viene mostrato l'onboarding carousel
+
+**Postcondizione**: Utente autenticato con accesso a tutte le funzionalita'
+
+### UC9 – Conversazione con il chatbot
+
+**Attore**: Utente autenticato  
+**Precondizione**: Almeno un'esecuzione completata  
+**Flusso**:
+1. L'utente accede alla pagina Bot
+2. Seleziona un'esecuzione dal menu
+3. Pone domande sui risultati in linguaggio naturale
+4. Il chatbot risponde con informazioni contestuali
+
+**Postcondizione**: L'utente ha ottenuto insight sui risultati
+
+### UC10 – Conversazione vocale
+
+**Attore**: Utente autenticato  
+**Precondizione**: Browser con supporto microfono  
+**Flusso**:
+1. L'utente attiva il voice mode nella pagina Bot
+2. Il browser richiede l'accesso al microfono
+3. L'utente parla in italiano
+4. Il sistema processa l'audio tramite Gemini Live e risponde in tempo reale con voce nativa
+5. I transcript vengono salvati nella conversazione
+
+**Postcondizione**: Conversazione vocale completata con transcript persistito
 
 ---
 
@@ -274,3 +342,6 @@ Se configurati SMTP e indirizzi in `config.toml`:
 | **Resume** | Ripresa da checkpoint salvato |
 | **Seed page** | Pagina "seme" che il bot visita per scoprire link a pagine specifiche di eventi o bandi |
 | **WebSearch grounding** | Capacità di Gemini di accedere a Google Search per risposte basate su informazioni aggiornate |
+| **Gemini Live** | API di Google per conversazioni audio bidirezionali in tempo reale con modelli AI |
+| **Voice mode** | Modalità di interazione vocale con il chatbot tramite Gemini Live native audio |
+| **Onboarding** | Guida introduttiva a carousel mostrata al primo accesso post-login |

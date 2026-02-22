@@ -65,6 +65,11 @@ resource "google_cloud_run_v2_service" "main" {
         value = "/app/static"
       }
 
+      env {
+        name  = "APP_URL"
+        value = "https://${var.app_name}-${var.project_id}.${var.region}.run.app"
+      }
+
       dynamic "env" {
         for_each = var.smtp_host != "" ? [1] : []
         content {

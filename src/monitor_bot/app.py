@@ -10,13 +10,17 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import update
 
 from monitor_bot.config import Settings
 from monitor_bot.database import async_session, init_db
 from monitor_bot.db_models import RunStatus, SearchRun
+from monitor_bot.routes.api_auth import router as auth_router
+from monitor_bot.routes.api_auth import validate_token
+from monitor_bot.routes.api_chat import router as chat_router
+from monitor_bot.routes.api_voice import router as voice_router
 from monitor_bot.routes.api_dashboard import router as dashboard_router
 from monitor_bot.routes.api_queries import router as queries_router
 from monitor_bot.routes.api_runs import router as runs_router
@@ -106,11 +110,34 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    @app.middleware("http")
+    async def _auth_middleware(request: Request, call_next):
+        path = request.url.path
+        if (
+            not path.startswith("/api")
+            or path.startswith("/api/auth/login")
+            or path.startswith("/api/docs")
+            or path.startswith("/api/openapi")
+            or path == "/api/chat/voice"
+            or request.method == "OPTIONS"
+        ):
+            return await call_next(request)
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return JSONResponse({"detail": "Not authenticated"}, status_code=401)
+        token = auth_header.removeprefix("Bearer ").strip()
+        if not validate_token(token):
+            return JSONResponse({"detail": "Invalid or expired token"}, status_code=401)
+        return await call_next(request)
+
+    app.include_router(auth_router)
     app.include_router(dashboard_router)
     app.include_router(sources_router)
     app.include_router(queries_router)
     app.include_router(runs_router)
     app.include_router(settings_router)
+    app.include_router(chat_router)
+    app.include_router(voice_router)
 
     if STATIC_DIR.is_dir():
         _mount_frontend(app)

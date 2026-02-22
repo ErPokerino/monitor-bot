@@ -13,11 +13,18 @@ class ApiError extends Error {
 
 async function request(method, path, body = null) {
   const opts = { method, headers: {} }
+  const token = localStorage.getItem('or-token')
+  if (token) opts.headers['Authorization'] = `Bearer ${token}`
   if (body !== null) {
     opts.headers['Content-Type'] = 'application/json'
     opts.body = JSON.stringify(body)
   }
   const resp = await fetch(`/api${path}`, opts)
+  if (resp.status === 401 && !path.startsWith('/auth/')) {
+    localStorage.removeItem('or-token')
+    window.location.href = '/login.html'
+    throw new ApiError(401, 'Not authenticated')
+  }
   if (!resp.ok) {
     let detail = `HTTP ${resp.status}`
     try {
@@ -58,6 +65,13 @@ export const api = {
 
   getSettings:   ()            => request('GET', '/settings'),
   updateSettings:(d)           => request('PUT', '/settings', d),
+
+  chatMessage:   (message, run_id = null) => request('POST', '/chat/message', { message, run_id }),
+  chatReset:     ()            => request('DELETE', '/chat/history'),
+  chatStatus:    ()            => request('GET', '/chat/status'),
+
+  login:         (username, password) => request('POST', '/auth/login', { username, password }),
+  authMe:        ()            => request('GET', '/auth/me'),
 }
 
 export { ApiError }

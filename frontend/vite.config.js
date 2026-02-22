@@ -6,9 +6,11 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
+        login: resolve(__dirname, 'login.html'),
         configurazioni: resolve(__dirname, 'configurazioni.html'),
         esegui: resolve(__dirname, 'esegui.html'),
         dettaglio: resolve(__dirname, 'dettaglio.html'),
+        chatbot: resolve(__dirname, 'chatbot.html'),
       },
     },
   },

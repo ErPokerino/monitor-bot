@@ -54,6 +54,40 @@ resource "google_cloud_run_v2_job" "pipeline" {
           value = "0"
         }
 
+        env {
+          name  = "APP_URL"
+          value = google_cloud_run_v2_service.main.uri
+        }
+
+        dynamic "env" {
+          for_each = var.smtp_host != "" ? [1] : []
+          content {
+            name  = "SMTP_HOST"
+            value = var.smtp_host
+          }
+        }
+
+        dynamic "env" {
+          for_each = var.smtp_user != "" ? [1] : []
+          content {
+            name  = "SMTP_USER"
+            value = var.smtp_user
+          }
+        }
+
+        dynamic "env" {
+          for_each = var.smtp_password != "" ? [1] : []
+          content {
+            name = "SMTP_PASSWORD"
+            value_source {
+              secret_key_ref {
+                secret  = google_secret_manager_secret.smtp_password[0].secret_id
+                version = "latest"
+              }
+            }
+          }
+        }
+
         volume_mounts {
           name       = "cloudsql"
           mount_path = "/cloudsql"

@@ -45,6 +45,12 @@ Monitor Bot è un'applicazione Python asincrona che orchestra una pipeline di ra
 | Config | TOML (tomllib) + pydantic-settings |
 | Validazione | Pydantic v2 |
 | Template | Jinja2 |
+| Web Framework | FastAPI (async) |
+| Database | PostgreSQL + SQLAlchemy (async) |
+| Frontend | Alpine.js + TailwindCSS + Vite |
+| Voice AI | Gemini Live API (`gemini-2.5-flash-preview-native-audio-dialog`) |
+| Autenticazione | Token-based (secrets.token_hex) |
+| Deploy | Docker + Cloud Run (GCP) |
 
 ---
 
@@ -61,6 +67,17 @@ src/monitor_bot/
 ├── notifier.py          # Report HTML, invio email
 ├── persistence.py       # PipelineCache – checkpoint su disco
 ├── progress.py          # ProgressTracker – barra progresso in italiano con icone
+├── genai_client.py      # Factory client Google GenAI (Vertex AI / API key)
+├── app.py               # FastAPI app factory + middleware auth
+├── routes/
+│   ├── api_auth.py      # Login e validazione token
+│   ├── api_chat.py      # Chatbot AI testuale
+│   ├── api_voice.py     # Voice mode WebSocket (Gemini Live)
+│   ├── api_dashboard.py # Dashboard stats
+│   ├── api_sources.py   # CRUD link diretti
+│   ├── api_queries.py   # CRUD ricerche internet
+│   ├── api_runs.py      # Gestione esecuzioni pipeline
+│   └── api_settings.py  # Impostazioni applicazione
 └── collectors/
     ├── base.py          # BaseCollector (abstract)
     ├── ted.py           # TEDCollector – API TED
@@ -172,6 +189,40 @@ ClassifiedOpportunity  # opportunity + classification
 - Filtra per `relevance_threshold`
 - Render Jinja2 con `templates/report.html`
 - Salvataggio in `output/report_*.html` o invio email
+
+### 4.9 Web Application (routes/)
+
+**api_auth.py**: Autenticazione token-based
+- `POST /api/auth/login`: validazione credenziali, generazione token
+- `GET /api/auth/me`: verifica sessione corrente
+- Token in-memory con scadenza
+
+**api_chat.py**: Chatbot AI testuale
+- `POST /api/chat/message`: invio messaggio con contesto esecuzione
+- System prompt dinamico con dati app (settings, fonti, query, storico run, risultati)
+- Supporto azione `[AVVIA_RICERCA]` per trigger pipeline da chat
+
+**api_voice.py**: Voice mode (Gemini Live)
+- `WS /api/chat/voice?token=...&run_id=...`: WebSocket bidirezionale
+- Proxy tra browser e Gemini Live API
+- Audio: PCM 16-bit 16kHz (input) / 24kHz (output)
+- Autenticazione via query parameter (WebSocket non supporta header)
+- 3 task asincroni: relay client->Gemini, relay Gemini->client, gestione lifecycle
+- Voice name: "Aoede", lingua: italiano
+
+**api_dashboard.py / api_sources.py / api_queries.py / api_runs.py / api_settings.py**: CRUD e business logic per le rispettive risorse.
+
+### 4.10 Frontend
+
+**main.js**: Setup Alpine.js, autenticazione guard, onboarding carousel, navbar
+- Auth guard: redirect a `/login.html` se token assente
+- Onboarding: carousel 4 slide post-login con persistenza in localStorage
+- Navbar: links con icone SVG, layout responsive desktop/mobile
+
+**chatbot.js**: Componente chatbot
+- Chat testuale con persistenza localStorage
+- Voice mode via WebSocket: cattura microfono (getUserMedia), invio PCM 16kHz, playback audio risposta
+- Overlay fullscreen durante voice mode con indicatore di stato
 
 ---
 

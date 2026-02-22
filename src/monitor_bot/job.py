@@ -19,6 +19,7 @@ from monitor_bot.services import queries as query_svc
 from monitor_bot.services import runs as run_svc
 from monitor_bot.services import settings as settings_svc
 from monitor_bot.services import sources as source_svc
+from monitor_bot.services.email import _render_report_html, send_run_notification
 
 logging.basicConfig(
     level=logging.INFO,
@@ -96,6 +97,27 @@ async def _run() -> None:
             f"su {result.opportunities_collected} analizzati"
         )
         logger.info("Job completed successfully – run_id=%d", run_id)
+
+        email_raw = all_settings.get("notification_emails", "")
+        email_list = [e.strip() for e in email_raw.split(",") if e.strip()]
+        if email_list:
+            import os
+            app_url = os.environ.get("APP_URL", "")
+            report_html = None
+            async with async_session() as db:
+                run_obj = await run_svc.get_run(db, run_id)
+                if run_obj and run_obj.results:
+                    report_html = _render_report_html(run_id, run_obj.results)
+            await send_run_notification(
+                run_id=run_id,
+                total_collected=result.opportunities_collected,
+                total_classified=result.opportunities_classified,
+                total_relevant=result.opportunities_relevant,
+                elapsed_seconds=result.elapsed_seconds,
+                recipients=email_list,
+                app_url=app_url or None,
+                report_html=report_html,
+            )
 
     except Exception:
         logger.exception("Job failed – run_id=%d", run_id)

@@ -110,32 +110,37 @@ tr:hover{background:#f9fafb}</style></head>
     },
 
     async exportPdf() {
-      const { jsPDF } = await import('jspdf')
-      await import('jspdf-autotable')
-      const doc = new jsPDF({ orientation: 'landscape' })
-      const title = `Risultati del ${formatDate(this.run?.started_at)}`
-      doc.setFontSize(16)
-      doc.text(title, 14, 18)
-      doc.setFontSize(10)
-      doc.setTextColor(100)
-      doc.text(`${this.filteredResults.length} risultati - Opportunity Radar`, 14, 26)
-      doc.autoTable({
-        startY: 32,
-        head: [['Titolo', 'Tipo', 'Cat.', 'Score', 'Scadenza', 'Ente', 'Paese']],
-        body: this.filteredResults.map(r => [
-          r.title?.substring(0, 60) || '',
-          r.opportunity_type || '',
-          r.category || '',
-          r.relevance_score,
-          r.deadline ? this.formatDeadline(r.deadline) : '',
-          r.contracting_authority?.substring(0, 30) || '',
-          r.country || '',
-        ]),
-        styles: { fontSize: 8, cellPadding: 3 },
-        headStyles: { fillColor: [30, 58, 95], fontSize: 9 },
-        alternateRowStyles: { fillColor: [248, 250, 252] },
-      })
-      doc.save(`risultati_run_${this.run?.id || 'export'}.pdf`)
+      try {
+        const { jsPDF } = await import('jspdf')
+        const { default: autoTable } = await import('jspdf-autotable')
+        const doc = new jsPDF({ orientation: 'landscape' })
+        const title = `Risultati del ${formatDate(this.run?.started_at)}`
+        doc.setFontSize(16)
+        doc.text(title, 14, 18)
+        doc.setFontSize(10)
+        doc.setTextColor(100)
+        doc.text(`${this.filteredResults.length} risultati - Opportunity Radar`, 14, 26)
+        autoTable(doc, {
+          startY: 32,
+          head: [['Titolo', 'Tipo', 'Cat.', 'Score', 'Scadenza', 'Ente', 'Paese']],
+          body: this.filteredResults.map(r => [
+            r.title?.substring(0, 60) || '',
+            r.opportunity_type || '',
+            r.category || '',
+            r.relevance_score,
+            r.deadline ? this.formatDeadline(r.deadline) : '',
+            r.contracting_authority?.substring(0, 30) || '',
+            r.country || '',
+          ]),
+          styles: { fontSize: 8, cellPadding: 3 },
+          headStyles: { fillColor: [30, 58, 95], fontSize: 9 },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+        })
+        doc.save(`risultati_run_${this.run?.id || 'export'}.pdf`)
+      } catch (e) {
+        console.error('PDF export failed:', e)
+        window.toast.error('Errore nella generazione del PDF')
+      }
     },
 
     _download(blob, filename) {

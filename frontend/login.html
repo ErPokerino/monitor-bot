@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="it" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accedi - Opportunity Radar</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>[x-cloak]{display:none!important}</style>
+</head>
+<body class="h-full bg-gray-50 font-sans text-gray-800 antialiased">
+
+<div class="min-h-full flex flex-col items-center justify-center px-4" x-data="loginPage">
+    <div class="w-full max-w-sm rounded-2xl bg-white p-8 shadow-xl">
+        <!-- Logo -->
+        <div class="flex justify-center mb-6">
+            <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-navy-800 to-accent-600 p-1">
+                <svg viewBox="0 0 64 64" fill="none" class="h-full w-full"><circle cx="32" cy="32" r="28" stroke="#fff" stroke-width="2.5" opacity="0.25"/><circle cx="32" cy="32" r="19" stroke="#fff" stroke-width="2.5" opacity="0.4"/><circle cx="32" cy="32" r="10" stroke="#fff" stroke-width="2.5" opacity="0.6"/><path d="M32 32L32 6" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity="0.9"/><circle cx="32" cy="32" r="3.5" fill="#fff"/><circle cx="40" cy="17" r="3.5" fill="#7dd3fc"/></svg>
+            </div>
+        </div>
+        <h1 class="text-xl font-bold text-navy-800 text-center">Opportunity Radar</h1>
+        <p class="text-sm text-gray-500 text-center mt-1 mb-6">Accedi al sistema</p>
+
+        <form @submit.prevent="submit()" class="space-y-4">
+            <div>
+                <input type="text" x-model="username" placeholder="Username" class="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-accent-500 focus:ring-1 focus:ring-accent-500 outline-none transition-colors">
+            </div>
+            <div>
+                <input type="password" x-model="password" placeholder="Password" class="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-accent-500 focus:ring-1 focus:ring-accent-500 outline-none transition-colors">
+            </div>
+            <div x-show="error" x-text="error" class="text-sm text-red-600"></div>
+            <button type="submit" :disabled="loading" class="w-full rounded-lg bg-navy-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-navy-700 disabled:opacity-60 disabled:cursor-not-allowed">
+                <span x-text="loading ? 'Accesso...' : 'Accedi'"></span>
+            </button>
+        </form>
+    </div>
+</div>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

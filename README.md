@@ -8,7 +8,7 @@ Il progetto è composto da due processi separati:
 
 | Componente | Tecnologia | Porta | Comando |
 |------------|-----------|-------|---------|
-| **Backend (API)** | FastAPI + SQLAlchemy + SQLite | 8000 | `uv run monitor-web` |
+| **Backend (API)** | FastAPI + SQLAlchemy + PostgreSQL + Gemini Live API | 8000 | `uv run monitor-web` |
 | **Frontend (UI)** | Vite + Alpine.js + TailwindCSS | 5173 | `npm run dev` (da `frontend/`) |
 
 In sviluppo, il frontend proxya le chiamate API (`/api/*`) al backend. In produzione, `npm run build` genera file statici servibili da nginx o dal backend stesso.
@@ -66,11 +66,12 @@ Aprire il browser su **http://localhost:5173**.
 
 | Pagina | Percorso | Descrizione |
 |--------|----------|-------------|
-| Dashboard | `/` | Panoramica con statistiche e esecuzioni recenti |
-| Configurazioni | `/configurazioni.html` | Link diretti, ricerche internet, impostazioni (soglia pertinenza, profilo azienda) |
-| Esegui | `/esegui.html` | Avvio pipeline con barra di progresso in tempo reale |
-| Storico | `/storico.html` | Lista esecuzioni precedenti con selezione multipla e cancellazione |
+| Login | `/login.html` | Autenticazione utente (username/password) |
+| Dashboard | `/` | Panoramica con statistiche, storico esecuzioni e onboarding carousel post-login |
+| Settings | `/configurazioni.html` | Link diretti, ricerche internet, impostazioni (soglia pertinenza, profilo azienda, schedulazione, notifiche email) |
+| Ricerca | `/esegui.html` | Avvio pipeline con barra di progresso in tempo reale |
 | Dettaglio | `/dettaglio.html?id=N` | Risultati di una singola esecuzione con filtri (tipo, categoria, scadenza) e export multi-formato (CSV, HTML, PDF) |
+| Bot | `/chatbot.html` | Chatbot AI con supporto voice mode (Gemini Live native audio) |
 
 ## API Endpoints
 
@@ -91,6 +92,11 @@ Aprire il browser su **http://localhost:5173**.
 | DELETE | `/api/runs/{id}` | Cancella esecuzione |
 | POST | `/api/runs/delete-batch` | Cancellazione multipla |
 | WS | `/api/runs/ws` | Progresso in tempo reale |
+| POST | `/api/chat/message` | Invio messaggio al chatbot AI |
+| DELETE | `/api/chat/history` | Reset storico conversazione |
+| WS | `/api/chat/voice` | Sessione vocale real-time (Gemini Live native audio) |
+| POST | `/api/auth/login` | Autenticazione utente |
+| GET | `/api/auth/me` | Verifica sessione corrente |
 
 ## CLI (uso diretto pipeline)
 
@@ -120,6 +126,9 @@ monitor-bot/
 │   ├── db_models.py           # ORM models
 │   ├── schemas.py             # Pydantic schemas
 │   ├── routes/                # API endpoints
+│   │   ├── api_auth.py        # Autenticazione (login/token)
+│   │   ├── api_chat.py        # Chatbot AI (testo)
+│   │   ├── api_voice.py       # Voice mode (Gemini Live WebSocket)
 │   │   ├── api_dashboard.py
 │   │   ├── api_sources.py
 │   │   ├── api_queries.py
@@ -143,10 +152,11 @@ monitor-bot/
 │   ├── package.json
 │   ├── vite.config.js
 │   ├── tailwind.config.js
-│   ├── index.html             # Dashboard
-│   ├── configurazioni.html    # Configurazioni (3 tab)
+│   ├── index.html             # Dashboard + onboarding carousel
+│   ├── login.html             # Login page
+│   ├── chatbot.html           # Chatbot + voice mode
+│   ├── configurazioni.html    # Settings (3 tab)
 │   ├── esegui.html            # Esecuzione pipeline
-│   ├── storico.html           # Storico esecuzioni
 │   ├── dettaglio.html         # Dettaglio risultati
 │   └── src/
 │       ├── main.js            # Alpine.js setup

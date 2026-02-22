@@ -17,6 +17,7 @@ DEFAULTS: dict[str, str] = {
     "scheduler_day": "1",
     "scheduler_hour": "2",
     "pipeline_timeout_minutes": "60",
+    "notification_emails": "marcello.gomitoni@abstract.it",
     "company_name": "",
     "company_sector": "IT Consulting & Services",
     "company_competencies": "SAP,Data Engineering,AI / Machine Learning,Cloud Infrastructure",

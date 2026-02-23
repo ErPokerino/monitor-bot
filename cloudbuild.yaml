@@ -40,7 +40,6 @@ options:
 
 substitutions:
   _REGION: europe-west1
-  _REPO: opportunity-radar
   _SERVICE: opportunity-radar
   _JOB: opportunity-radar-pipeline
   _IMAGE_BASE: europe-west1-docker.pkg.dev/opportunity-radar-488210/opportunity-radar/opportunity-radar

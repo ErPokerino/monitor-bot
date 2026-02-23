@@ -5,10 +5,18 @@ from __future__ import annotations
 import enum
 from datetime import date, datetime
 
+import zoneinfo
+
 from sqlalchemy import Boolean, Date, DateTime, Enum, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from monitor_bot.database import Base
+
+_ROME = zoneinfo.ZoneInfo("Europe/Rome")
+
+
+def _now_rome() -> datetime:
+    return datetime.now(_ROME).replace(tzinfo=None)
 
 
 # ------------------------------------------------------------------
@@ -47,9 +55,9 @@ class MonitoredSource(Base):
     category: Mapped[SourceCategory] = mapped_column(Enum(SourceCategory), nullable=False)
     source_type: Mapped[SourceType] = mapped_column(Enum(SourceType), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now_rome, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False,
+        DateTime, default=_now_rome, onupdate=_now_rome, nullable=False,
     )
 
 
@@ -61,9 +69,9 @@ class SearchQuery(Base):
     category: Mapped[SourceCategory] = mapped_column(Enum(SourceCategory), nullable=False)
     max_results: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now_rome, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False,
+        DateTime, default=_now_rome, onupdate=_now_rome, nullable=False,
     )
 
 
@@ -71,7 +79,7 @@ class SearchRun(Base):
     __tablename__ = "search_runs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=_now_rome, nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     status: Mapped[RunStatus] = mapped_column(
         Enum(RunStatus), default=RunStatus.RUNNING, nullable=False,

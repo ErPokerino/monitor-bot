@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from monitor_bot.db_models import RunStatus, SearchResult, SearchRun
+from monitor_bot.db_models import RunStatus, SearchResult, SearchRun, _now_rome
 from monitor_bot.models import ClassifiedOpportunity
 
 
@@ -37,7 +36,7 @@ async def complete_run(
     if not run:
         return None
     run.status = status
-    run.completed_at = datetime.utcnow()
+    run.completed_at = _now_rome()
     run.total_collected = total_collected
     run.total_classified = total_classified
     run.total_relevant = total_relevant

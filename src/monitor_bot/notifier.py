@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import logging
 import smtplib
+import zoneinfo
 from collections import Counter
 from datetime import date, datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
+
+_ROME = zoneinfo.ZoneInfo("Europe/Rome")
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -85,7 +88,7 @@ class Notifier:
 
         template = self._jinja_env.get_template("report.html")
         return template.render(
-            generated_at=datetime.now().strftime("%Y-%m-%d %H:%M"),
+            generated_at=datetime.now(_ROME).strftime("%Y-%m-%d %H:%M"),
             lookback_days=self._settings.lookback_days,
             total_analyzed=total_analyzed,
             relevant_count=len(opportunities),
@@ -126,7 +129,7 @@ class Notifier:
     def _save_local(self, html: str) -> Path:
         output_dir = Path("output")
         output_dir.mkdir(exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(_ROME).strftime("%Y%m%d_%H%M%S")
         path = output_dir / f"report_{timestamp}.html"
         path.write_text(html, encoding="utf-8")
         logger.info("Report saved to %s", path)

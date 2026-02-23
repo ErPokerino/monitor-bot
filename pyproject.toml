@@ -8,6 +8,7 @@ dependencies = [
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
     "google-genai>=1.51",
+    "google-auth>=2.0",
     "jinja2>=3.1",
     "python-dotenv>=1.1",
     "feedparser>=6.0.12",

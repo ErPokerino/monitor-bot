@@ -16,8 +16,11 @@ from __future__ import annotations
 
 import json
 import logging
+import zoneinfo
 from datetime import datetime
 from pathlib import Path
+
+_ROME = zoneinfo.ZoneInfo("Europe/Rome")
 
 from monitor_bot.models import ClassifiedOpportunity, Opportunity
 
@@ -33,7 +36,7 @@ class PipelineCache:
         if run_id:
             self._run_dir = CACHE_DIR / run_id
         else:
-            self._run_dir = CACHE_DIR / f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            self._run_dir = CACHE_DIR / f"run_{datetime.now(_ROME).strftime('%Y%m%d_%H%M%S')}"
         self._run_dir.mkdir(parents=True, exist_ok=True)
         logger.info("Cache directory: %s", self._run_dir)
 
@@ -110,7 +113,7 @@ class PipelineCache:
 
     def save_metadata(self, stage: str, **extra: object) -> None:
         path = self._run_dir / "metadata.json"
-        data = {"stage": stage, "updated_at": datetime.now().isoformat(), **extra}
+        data = {"stage": stage, "updated_at": datetime.now(_ROME).isoformat(), **extra}
         path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def load_metadata(self) -> dict | None:

@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import os
 from contextlib import asynccontextmanager
-from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -16,7 +15,7 @@ from sqlalchemy import update
 
 from monitor_bot.config import Settings
 from monitor_bot.database import async_session, init_db
-from monitor_bot.db_models import RunStatus, SearchRun
+from monitor_bot.db_models import RunStatus, SearchRun, _now_rome
 from monitor_bot.routes.api_auth import router as auth_router
 from monitor_bot.routes.api_auth import validate_token
 from monitor_bot.routes.api_chat import router as chat_router
@@ -86,12 +85,24 @@ async def _cleanup_orphaned_runs(db) -> None:
     stmt = (
         update(SearchRun)
         .where(SearchRun.status == RunStatus.RUNNING)
-        .values(status=RunStatus.CANCELLED, completed_at=datetime.utcnow())
+        .values(status=RunStatus.CANCELLED, completed_at=_now_rome())
     )
     result = await db.execute(stmt)
     if result.rowcount:
         await db.commit()
         logger.info("Cleaned up %d orphaned running task(s)", result.rowcount)
+
+
+def _verify_gcp_oidc(token: str) -> bool:
+    """Verify a Google OIDC token (used by Cloud Scheduler)."""
+    try:
+        from google.auth.transport import requests as google_requests
+        from google.oauth2 import id_token
+
+        id_token.verify_oauth2_token(token, google_requests.Request())
+        return True
+    except Exception:
+        return False
 
 
 def create_app() -> FastAPI:
@@ -126,9 +137,11 @@ def create_app() -> FastAPI:
         if not auth_header.startswith("Bearer "):
             return JSONResponse({"detail": "Not authenticated"}, status_code=401)
         token = auth_header.removeprefix("Bearer ").strip()
-        if not validate_token(token):
-            return JSONResponse({"detail": "Invalid or expired token"}, status_code=401)
-        return await call_next(request)
+        if validate_token(token):
+            return await call_next(request)
+        if path == "/api/runs/start" and _verify_gcp_oidc(token):
+            return await call_next(request)
+        return JSONResponse({"detail": "Invalid or expired token"}, status_code=401)
 
     app.include_router(auth_router)
     app.include_router(dashboard_router)

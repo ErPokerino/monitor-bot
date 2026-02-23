@@ -5,9 +5,12 @@ from __future__ import annotations
 import logging
 import os
 import smtplib
+import zoneinfo
 from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+
+_ROME = zoneinfo.ZoneInfo("Europe/Rome")
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +39,7 @@ def _render_html(run_id, total_collected, total_classified, total_relevant, elap
     mins = int(elapsed_seconds) // 60
     secs = int(elapsed_seconds) % 60
     elapsed_str = f"{mins}m {secs}s" if mins else f"{secs}s"
-    now = datetime.now().strftime("%d/%m/%Y %H:%M")
+    now = datetime.now(_ROME).strftime("%d/%m/%Y %H:%M")
 
     link_block = ""
     if app_url:
@@ -89,7 +92,7 @@ def _esc(text):
 
 def _render_report_html(run_id, results):
     """Build a standalone HTML report with the full results table."""
-    now = datetime.now().strftime("%d/%m/%Y %H:%M")
+    now = datetime.now(_ROME).strftime("%d/%m/%Y %H:%M")
 
     rows_html = ""
     for r in results:

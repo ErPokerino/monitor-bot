@@ -205,14 +205,8 @@
                 :class="voiceMode ? 'bg-red-500 text-white border-red-500 animate-pulse' : 'bg-gradient-to-r from-accent-50 to-white text-accent-600 border-accent-200 hover:border-accent-400 hover:shadow-md'"
                 :title="voiceMode ? 'Termina conversazione vocale' : 'Avvia conversazione vocale'"
             >
-                <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                    <template x-if="!voiceMode">
-                        <g><path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15a3 3 0 01-3-3V6a3 3 0 016 0v6a3 3 0 01-3 3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 10.5c0-.414.336-.75.75-.75h.5c.414 0 .75.336.75.75v0c0 .414-.336.75-.75.75h-.5a.75.75 0 01-.75-.75v0zM18.25 10.5c0-.414.336-.75.75-.75h.5c.414 0 .75.336.75.75v0c0 .414-.336.75-.75.75h-.5a.75.75 0 01-.75-.75v0z"/></g>
-                    </template>
-                    <template x-if="voiceMode">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
-                    </template>
-                </svg>
+                <svg x-show="!voiceMode" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15a3 3 0 01-3-3V6a3 3 0 016 0v6a3 3 0 01-3 3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 10.5c0-.414.336-.75.75-.75h.5c.414 0 .75.336.75.75v0c0 .414-.336.75-.75.75h-.5a.75.75 0 01-.75-.75v0zM18.25 10.5c0-.414.336-.75.75-.75h.5c.414 0 .75.336.75.75v0c0 .414-.336.75-.75.75h-.5a.75.75 0 01-.75-.75v0z"/></svg>
+                <svg x-show="voiceMode" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                 <span class="text-sm font-medium hidden sm:inline" x-text="voiceMode ? 'Termina' : 'Voce'"></span>
             </button>
             <button

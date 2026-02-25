@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 from monitor_bot.db_models import RunStatus, SearchResult, SearchRun, _now_rome
 from monitor_bot.models import ClassifiedOpportunity
 from monitor_bot.services import agenda as agenda_svc
+from monitor_bot.services import settings as settings_svc
 
 
 async def create_run(db: AsyncSession, config_snapshot: dict | None = None) -> SearchRun:
@@ -81,7 +82,9 @@ async def save_results(
         count += 1
     await db.commit()
 
-    await agenda_svc.upsert_from_results(db, run_id, saved_results)
+    all_settings = await settings_svc.get_all(db)
+    threshold = int(all_settings.get("relevance_threshold", "6"))
+    await agenda_svc.upsert_from_results(db, run_id, saved_results, threshold=threshold)
 
     return count
 

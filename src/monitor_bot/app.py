@@ -66,6 +66,7 @@ async def lifespan(app: FastAPI):
     async with async_session() as db:
         await seed_defaults(db, settings)
         await _cleanup_orphaned_runs(db)
+        await _backfill_agenda(db)
 
     port = os.environ.get("PORT", "8000")
     logger.info("Opportunity Radar API ready on port %s", port)
@@ -79,6 +80,18 @@ async def lifespan(app: FastAPI):
             await _current_task
         except Exception:
             pass
+
+
+async def _backfill_agenda(db) -> None:
+    """Populate agenda from existing search results if the agenda is empty."""
+    from monitor_bot.services import agenda as agenda_svc
+    from monitor_bot.services import settings as settings_svc
+
+    all_settings = await settings_svc.get_all(db)
+    threshold = int(all_settings.get("relevance_threshold", "6"))
+    count = await agenda_svc.backfill_from_existing_results(db, threshold=threshold)
+    if count:
+        logger.info("Backfilled agenda with %d items from existing search results", count)
 
 
 async def _cleanup_orphaned_runs(db) -> None:

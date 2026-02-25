@@ -10,13 +10,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from monitor_bot.db_models import AgendaItem, Evaluation, SearchResult, _now_rome
 
 
-async def upsert_from_results(db: AsyncSession, run_id: int, results: list[SearchResult]) -> int:
+async def upsert_from_results(
+    db: AsyncSession,
+    run_id: int,
+    results: list[SearchResult],
+    *,
+    threshold: int = 6,
+) -> int:
     """Insert new agenda items or update existing ones from search results.
 
+    Only items with relevance_score >= threshold are included.
     Returns count of newly inserted items.
     """
     new_count = 0
     for r in results:
+        if r.relevance_score < threshold:
+            continue
         url_key = r.source_url.strip().lower()
         if not url_key:
             continue
@@ -251,3 +260,75 @@ async def get_excluded_urls(db: AsyncSession) -> set[str]:
     )
     result = await db.execute(stmt)
     return {row[0] for row in result.all()}
+
+
+async def backfill_from_existing_results(db: AsyncSession, *, threshold: int = 6) -> int:
+    """One-time migration: populate agenda from all existing SearchResults.
+
+    Skips results already present in the agenda. Should be called at app startup.
+    Returns count of newly inserted items.
+    """
+    import logging
+    log = logging.getLogger(__name__)
+
+    existing_urls_stmt = select(AgendaItem.source_url)
+    existing_urls = {row[0] for row in (await db.execute(existing_urls_stmt)).all()}
+
+    if existing_urls:
+        return 0
+
+    all_results_stmt = (
+        select(SearchResult)
+        .where(SearchResult.relevance_score >= threshold)
+        .order_by(SearchResult.run_id.asc())
+    )
+    all_results = list((await db.execute(all_results_stmt)).scalars().all())
+
+    if not all_results:
+        return 0
+
+    new_count = 0
+    seen_urls: set[str] = set()
+    for r in all_results:
+        url_key = r.source_url.strip().lower()
+        if not url_key or url_key in seen_urls:
+            if url_key in seen_urls:
+                stmt = select(AgendaItem).where(AgendaItem.source_url == url_key)
+                existing = (await db.execute(stmt)).scalar_one_or_none()
+                if existing and r.relevance_score > existing.relevance_score:
+                    existing.relevance_score = r.relevance_score
+                    existing.ai_reasoning = r.ai_reasoning
+                    existing.category = r.category
+                    existing.key_requirements = r.key_requirements
+                if existing and r.deadline and (existing.deadline is None or r.deadline > existing.deadline):
+                    existing.deadline = r.deadline
+            continue
+
+        seen_urls.add(url_key)
+        item = AgendaItem(
+            source_url=url_key,
+            opportunity_id=r.opportunity_id,
+            title=r.title,
+            description=r.description,
+            contracting_authority=r.contracting_authority,
+            deadline=r.deadline,
+            estimated_value=r.estimated_value,
+            currency=r.currency,
+            country=r.country,
+            source=r.source,
+            opportunity_type=r.opportunity_type,
+            relevance_score=r.relevance_score,
+            category=r.category,
+            ai_reasoning=r.ai_reasoning,
+            key_requirements=r.key_requirements,
+            is_seen=True,
+            first_run_id=r.run_id,
+        )
+        db.add(item)
+        new_count += 1
+
+    if new_count:
+        await db.commit()
+        log.info("Agenda backfill: inserted %d items from existing search results", new_count)
+
+    return new_count

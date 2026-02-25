@@ -46,11 +46,12 @@ Monitor Bot è un'applicazione Python asincrona che orchestra una pipeline di ra
 | Validazione | Pydantic v2 |
 | Template | Jinja2 |
 | Web Framework | FastAPI (async) |
-| Database | PostgreSQL + SQLAlchemy (async) |
+| Database | PostgreSQL + SQLAlchemy (async) + asyncpg |
 | Frontend | Alpine.js + TailwindCSS + Vite |
-| Voice AI | Gemini Live API (`gemini-2.5-flash-preview-native-audio-dialog`) |
-| Autenticazione | Token-based (secrets.token_hex) |
-| Deploy | Docker + Cloud Run (GCP) |
+| Voice AI | Gemini Live API (`gemini-live-2.5-flash-native-audio`) |
+| Autenticazione | Token-based (secrets.token_hex) + OIDC Google (Cloud Scheduler) |
+| Timezone | Europe/Rome (zoneinfo) per tutti i timestamp |
+| Deploy | Docker multi-stage + Cloud Run (GCP) + Cloud Build CI/CD |
 
 ---
 
@@ -214,6 +215,7 @@ La tabella viene popolata automaticamente dopo ogni esecuzione pipeline (upsert 
 - `POST /api/auth/login`: validazione credenziali, generazione token
 - `GET /api/auth/me`: verifica sessione corrente
 - Token in-memory con scadenza
+- Il middleware auth accetta anche token OIDC Google su `/api/runs/start` (validati via `google.oauth2.id_token`) per consentire il trigger da Cloud Scheduler
 
 **api_chat.py**: Chatbot AI testuale
 - `POST /api/chat/message`: invio messaggio con contesto esecuzione
@@ -249,8 +251,11 @@ La tabella viene popolata automaticamente dopo ogni esecuzione pipeline (upsert 
 
 **chatbot.js**: Componente chatbot
 - Chat testuale con persistenza localStorage
+- Pulsante "Nuova chat" con conferma a due click (icona + / cestino rosso) per evitare cancellazioni accidentali
+- Pulsante voice mode con icona microfono + onde (conversazione bidirezionale) e label testuale
 - Voice mode via WebSocket: cattura microfono (getUserMedia), invio PCM 16kHz, playback audio risposta
-- Overlay fullscreen durante voice mode con indicatore di stato
+- Overlay fullscreen durante voice mode con indicatore di stato e anelli animati
+- Layout responsive: toolbar su due righe su mobile (titolo + selettore esecuzioni), input compatto, altezza `100dvh`
 
 ---
 
@@ -305,7 +310,7 @@ Il progetto usa tre file TOML, tutti strutturati con commenti guida:
 
 ```toml
 [gemini]
-model = "gemini-3-flash-preview"
+model = "gemini-2.5-flash"
 
 [classification]
 relevance_threshold = 6
@@ -462,15 +467,57 @@ uv run monitor-bot --config mio_config.toml
 
 ---
 
-## 11. Dipendenze (pyproject.toml)
+## 11. Gestione fuso orario
+
+Tutti i timestamp dell'applicazione usano il fuso orario `Europe/Rome` (via `zoneinfo.ZoneInfo`). La funzione `_now_rome()` in `db_models.py` restituisce `datetime.now(Europe/Rome)` come datetime naive (senza tzinfo) per compatibilità con il database.
+
+Punti di applicazione:
+- **DB models**: `started_at`, `completed_at`, `created_at`, `updated_at` usano `_now_rome` come default
+- **Services**: `runs.py` (complete_run), `email.py` (timestamp report), `notifier.py` (report HTML), `persistence.py` (cache directory)
+- **Cleanup**: `app.py` (orphaned runs) usa `_now_rome()`
+
+Cloud Run gira in UTC; senza questa configurazione esplicita i timestamp risulterebbero sfasati di 1-2 ore rispetto all'orario italiano.
+
+---
+
+## 12. Infrastruttura GCP (Terraform)
+
+L'infrastruttura è definita in `infra/` con Terraform (state su GCS):
+
+| Risorsa | Servizio GCP | Dettagli |
+|---------|-------------|----------|
+| Web app | Cloud Run Service | 1-2 istanze, 1 CPU / 512Mi |
+| Pipeline batch | Cloud Run Job | 2 CPU / 1Gi, timeout 1h |
+| Database | Cloud SQL PostgreSQL 15 | Istanza zonale |
+| Schedulazione | Cloud Scheduler | Cron configurabile, tz Europe/Rome |
+| CI/CD | Cloud Build | Trigger su push `main` via GitHub |
+| Registry | Artifact Registry (Docker) | Immagini container |
+| Storage | Cloud Storage | Cache/dati, retention 90gg |
+| Secrets | Secret Manager | Password DB, SMTP |
+| Networking | VPC Access Connector | Cloud Run <-> Cloud SQL |
+
+Service account dedicati: `or-runtime` (Service), `or-pipeline` (Job), `or-scheduler` (Scheduler).
+
+Il Cloud Scheduler invia una POST a `/api/runs/start` con token OIDC, che il middleware auth valida tramite `google.oauth2.id_token.verify_oauth2_token()`.
+
+---
+
+## 13. Dipendenze (pyproject.toml)
 
 ```
 httpx>=0.28
 pydantic>=2.10
 pydantic-settings>=2.7
 google-genai>=1.51
+google-auth>=2.0
 jinja2>=3.1
 python-dotenv>=1.1
 feedparser>=6.0.12
 beautifulsoup4>=4.12
+fastapi>=0.115
+uvicorn[standard]>=0.34
+sqlalchemy[asyncio]>=2.0
+asyncpg>=0.30
+aiosqlite>=0.21
+python-multipart>=0.0.18
 ```

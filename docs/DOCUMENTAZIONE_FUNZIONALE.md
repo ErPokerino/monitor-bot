@@ -108,7 +108,7 @@ La pagina Esecuzioni mostra lo storico completo delle ricerche eseguite con tabe
 
 ### 2.10 Autenticazione
 
-L'accesso all'applicazione richiede autenticazione tramite username e password. Dopo il login, viene generato un token di sessione che viene utilizzato per tutte le richieste API successive. In caso di token scaduto o non valido, l'utente viene reindirizzato alla pagina di login.
+L'accesso all'applicazione richiede autenticazione tramite username e password. La pagina di login include un toggle di visibilita' della password (icona occhio) per consentire all'utente di verificare quanto digitato. Dopo il login, viene generato un token di sessione che viene utilizzato per tutte le richieste API successive. In caso di token scaduto o non valido, l'utente viene reindirizzato alla pagina di login.
 
 ### 2.11 Onboarding
 
@@ -130,11 +130,15 @@ Il chatbot AI integrato permette di:
 
 Il contesto della conversazione include automaticamente le configurazioni, lo storico esecuzioni e i risultati dell'esecuzione selezionata.
 
+La toolbar del chatbot e' responsive: su desktop mostra titolo, selettore esecuzioni e pulsante "Nuova chat" su una riga; su mobile il titolo e il pulsante nuova chat sono sulla prima riga, il selettore esecuzioni va a capo sulla seconda riga a larghezza piena.
+
+Il pulsante "Nuova chat" richiede una conferma a due click per evitare cancellazioni accidentali: al primo click mostra l'icona cestino con il testo "Conferma?", al secondo click resetta la conversazione.
+
 ### 2.13 Voice Mode
 
 La modalita' vocale utilizza Gemini Live native audio per conversazioni in tempo reale. L'audio viene processato nativamente dal modello AI (senza passaggi intermedi STT/TTS), risultando in conversazioni naturali e fluenti in italiano.
 
-Per attivare il voice mode, l'utente clicca il pulsante microfono nella pagina chatbot. Viene mostrato un overlay fullscreen con indicatore di stato. L'utente parla naturalmente e riceve risposte audio immediate. I transcript delle conversazioni vengono salvati nella chat.
+Per attivare il voice mode, l'utente clicca il pulsante "Voce" (icona microfono con onde laterali) nella pagina chatbot. Viene mostrato un overlay fullscreen con indicatore di stato animato (cerchio pulsante con anelli concentrici). L'utente parla naturalmente e riceve risposte audio immediate. I transcript delle conversazioni vengono salvati nella chat. Per terminare, l'utente clicca il pulsante "Termina conversazione" nell'overlay.
 
 ---
 
@@ -302,8 +306,9 @@ uv run monitor-bot --test --no-resume
 
 ### 4.4 Modelli Gemini
 
-- `gemini-3-flash-preview`: più veloce, costo inferiore
-- `gemini-3-pro-preview`: più accurato, più lento
+- `gemini-2.5-flash`: più veloce, costo inferiore (default)
+- `gemini-2.5-pro`: più accurato, più lento
+- `gemini-live-2.5-flash-native-audio`: voice mode conversazionale
 
 ### 4.5 Abilitazione/disabilitazione fonti
 

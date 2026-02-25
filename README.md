@@ -8,7 +8,7 @@ Il progetto è composto da due processi separati:
 
 | Componente | Tecnologia | Porta | Comando |
 |------------|-----------|-------|---------|
-| **Backend (API)** | FastAPI + SQLAlchemy + PostgreSQL + Gemini Live API | 8000 | `uv run monitor-web` |
+| **Backend (API)** | FastAPI + SQLAlchemy + PostgreSQL + Gemini 2.5 Flash + Gemini Live | 8000 | `uv run monitor-web` |
 | **Frontend (UI)** | Vite + Alpine.js + TailwindCSS | 5173 | `npm run dev` (da `frontend/`) |
 
 In sviluppo, il frontend proxya le chiamate API (`/api/*`) al backend. In produzione, `npm run build` genera file statici servibili da nginx o dal backend stesso.
@@ -66,13 +66,13 @@ Aprire il browser su **http://localhost:5173**.
 
 | Pagina | Percorso | Descrizione |
 |--------|----------|-------------|
-| Login | `/login.html` | Autenticazione utente (username/password) |
+| Login | `/login.html` | Autenticazione utente (username/password, toggle visibilita' password) |
 | Agenda | `/` | Valutazione opportunità (pollice su/giù), iscrizione eventi, pannello scadenze, feedback eventi passati |
 | Esecuzioni | `/esecuzioni.html` | Storico completo delle esecuzioni con selezione multipla e cancellazione |
 | Settings | `/configurazioni.html` | Link diretti, ricerche internet, impostazioni (soglia pertinenza, profilo azienda, schedulazione, notifiche email) |
 | Ricerca | `/esegui.html` | Avvio pipeline con barra di progresso in tempo reale |
 | Dettaglio | `/dettaglio.html?id=N` | Risultati di una singola esecuzione con filtri (tipo, categoria, scadenza) e export multi-formato (CSV, HTML, PDF) |
-| Bot | `/chatbot.html` | Chatbot AI con supporto voice mode (Gemini Live native audio) |
+| Bot | `/chatbot.html` | Chatbot AI con supporto voice mode (Gemini Live native audio), layout responsive mobile |
 
 ## API Endpoints
 
@@ -126,8 +126,9 @@ monitor-bot/
 ├── config.test.toml           # Configurazione test rapido
 ├── .env                       # Chiavi API (non committare)
 ├── pyproject.toml             # Dipendenze Python
+├── infra/                     # Terraform (GCP infrastructure)
 ├── src/monitor_bot/           # Backend Python
-│   ├── app.py                 # FastAPI app factory (API-only)
+│   ├── app.py                 # FastAPI app factory + auth middleware (OIDC)
 │   ├── main.py                # CLI entry point
 │   ├── pipeline.py            # Pipeline engine
 │   ├── config.py              # Configurazione TOML + secrets
@@ -149,7 +150,8 @@ monitor-bot/
 │   │   ├── sources.py
 │   │   ├── queries.py
 │   │   ├── runs.py
-│   │   └── settings.py
+│   │   ├── settings.py        # Impostazioni + sync Cloud Scheduler
+│   │   └── email.py           # Notifiche email pipeline
 │   ├── collectors/            # Data collectors
 │   │   ├── ted.py
 │   │   ├── anac.py
@@ -175,7 +177,9 @@ monitor-bot/
 │       ├── style.css          # TailwindCSS
 │       ├── api.js             # Client API centralizzato
 │       └── components/        # Alpine.js components
-├── templates/                 # Legacy Jinja2 templates (non utilizzati)
+├── templates/                 # Jinja2 templates (report HTML)
+├── cloudbuild.yaml            # CI/CD Cloud Build
+├── Dockerfile                 # Multi-stage build (Node + Python)
 └── output/                    # Report e cache CLI
 ```
 

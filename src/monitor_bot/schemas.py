@@ -105,6 +105,10 @@ class ResultOut(BaseModel):
     category: str
     ai_reasoning: str
     key_requirements: str
+    event_format: str | None = None
+    event_cost: str | None = None
+    city: str | None = None
+    sector: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -148,6 +152,10 @@ class AgendaItemOut(BaseModel):
     category: str
     ai_reasoning: str
     key_requirements: str
+    event_format: str | None = None
+    event_cost: str | None = None
+    city: str | None = None
+    sector: str | None = None
     evaluation: Evaluation | None
     is_enrolled: bool
     feedback_recommend: bool | None

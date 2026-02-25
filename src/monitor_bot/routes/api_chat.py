@@ -218,12 +218,20 @@ async def _format_agenda(db: AsyncSession) -> str:
             feedback += f" | Consigliato: {'Si' if item.feedback_recommend else 'No'}"
         if item.feedback_return is not None:
             feedback += f" | Tornerebbe: {'Si' if item.feedback_return else 'No'}"
+        event_meta = ""
+        if item.event_format:
+            event_meta += f" | Formato: {item.event_format}"
+        if item.event_cost:
+            event_meta += f" | Costo: {item.event_cost}"
+        if item.sector:
+            event_meta += f" | Settore: {item.sector}"
+        location = ", ".join(filter(None, [item.city, item.country])) or "N/D"
         return (
             f"\n**{i}. {item.title}**\n"
             f"   Tipo: {item.opportunity_type} | Categoria: {item.category} | "
             f"Score: {item.relevance_score}/10 | Scadenza: {deadline_str}{value_str}\n"
-            f"   Ente: {item.contracting_authority or 'N/D'} | Paese: {item.country or 'N/D'}"
-            f"{eval_str}{enrolled_str}{feedback}\n"
+            f"   Ente: {item.contracting_authority or 'N/D'} | Luogo: {location}"
+            f"{event_meta}{eval_str}{enrolled_str}{feedback}\n"
             f"   Ragionamento AI: {item.ai_reasoning}{reqs}\n"
             f"   Link: {item.source_url}"
         )

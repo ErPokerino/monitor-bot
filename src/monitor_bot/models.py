@@ -36,6 +36,22 @@ class Category(str, enum.Enum):
     OTHER = "Other"
 
 
+class EventFormat(str, enum.Enum):
+    """Whether the event is in-person, streamed, or on-demand."""
+
+    IN_PRESENZA = "In presenza"
+    STREAMING = "Streaming"
+    ON_DEMAND = "On demand"
+
+
+class EventCost(str, enum.Enum):
+    """Admission cost model for an event."""
+
+    GRATUITO = "Gratuito"
+    A_PAGAMENTO = "A pagamento"
+    SU_INVITO = "Su invito"
+
+
 class Opportunity(BaseModel):
     """A normalised public-procurement opportunity."""
 
@@ -70,6 +86,22 @@ class Classification(BaseModel):
             "Relevant date extracted from the text in ISO format (YYYY-MM-DD). "
             "For events: the event date. For tenders: the submission deadline."
         ),
+    )
+    event_format: EventFormat | None = Field(
+        default=None,
+        description="In presenza / Streaming / On demand (only for events).",
+    )
+    event_cost: EventCost | None = Field(
+        default=None,
+        description="Gratuito / A pagamento / Su invito (only for events).",
+    )
+    city: str | None = Field(
+        default=None,
+        description="City where the event takes place (only for in-person events).",
+    )
+    sector: str | None = Field(
+        default=None,
+        description="Industry sector targeted by the opportunity (e.g. Healthcare, Finance, PA).",
     )
 
 

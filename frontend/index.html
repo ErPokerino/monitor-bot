@@ -214,6 +214,15 @@
                     <div class="flex flex-wrap items-center gap-2 mb-3">
                         <span :class="typeColor(item.opportunity_type)" class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium" x-text="item.opportunity_type"></span>
                         <span :class="categoryColor(item.category)" class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium" x-text="item.category"></span>
+                        <template x-if="item.event_format">
+                            <span :class="formatColor(item.event_format)" class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium" x-text="item.event_format"></span>
+                        </template>
+                        <template x-if="item.event_cost">
+                            <span :class="costColor(item.event_cost)" class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium" x-text="item.event_cost"></span>
+                        </template>
+                        <template x-if="item.sector">
+                            <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700" x-text="item.sector"></span>
+                        </template>
                         <template x-if="item.deadline">
                             <span :class="deadlineColor(item.deadline)" class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium" x-text="deadlineLabel(item.deadline)"></span>
                         </template>
@@ -250,10 +259,16 @@
                                 <span x-text="new Intl.NumberFormat('it-IT', { style: 'currency', currency: item.currency }).format(item.estimated_value)"></span>
                             </span>
                         </template>
-                        <template x-if="item.source">
+                        <template x-if="item.source && item.opportunity_type !== 'Evento'">
                             <span class="inline-flex items-center gap-1">
                                 <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064"/></svg>
                                 <span x-text="item.source"></span>
+                            </span>
+                        </template>
+                        <template x-if="item.city || item.country">
+                            <span class="inline-flex items-center gap-1">
+                                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                <span x-text="[item.city, item.country].filter(Boolean).join(', ')"></span>
                             </span>
                         </template>
                     </div>

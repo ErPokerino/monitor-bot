@@ -45,6 +45,14 @@ async def upsert_from_results(
                 existing.deadline = r.deadline
             if r.description and len(r.description) > len(existing.description or ""):
                 existing.description = r.description
+            if r.event_format and not existing.event_format:
+                existing.event_format = r.event_format
+            if r.event_cost and not existing.event_cost:
+                existing.event_cost = r.event_cost
+            if r.city and not existing.city:
+                existing.city = r.city
+            if r.sector and not existing.sector:
+                existing.sector = r.sector
         else:
             item = AgendaItem(
                 source_url=url_key,
@@ -62,6 +70,10 @@ async def upsert_from_results(
                 category=r.category,
                 ai_reasoning=r.ai_reasoning,
                 key_requirements=r.key_requirements,
+                event_format=r.event_format,
+                event_cost=r.event_cost,
+                city=r.city,
+                sector=r.sector,
                 is_seen=False,
                 first_run_id=run_id,
             )
@@ -315,6 +327,14 @@ async def backfill_from_existing_results(db: AsyncSession, *, threshold: int = 6
                 existing.key_requirements = r.key_requirements
             if existing and r.deadline and (existing.deadline is None or r.deadline > existing.deadline):
                 existing.deadline = r.deadline
+            if existing and r.event_format and not existing.event_format:
+                existing.event_format = r.event_format
+            if existing and r.event_cost and not existing.event_cost:
+                existing.event_cost = r.event_cost
+            if existing and r.city and not existing.city:
+                existing.city = r.city
+            if existing and r.sector and not existing.sector:
+                existing.sector = r.sector
             continue
 
         seen_urls.add(url_key)
@@ -334,6 +354,10 @@ async def backfill_from_existing_results(db: AsyncSession, *, threshold: int = 6
             category=r.category,
             ai_reasoning=r.ai_reasoning,
             key_requirements=r.key_requirements,
+            event_format=r.event_format,
+            event_cost=r.event_cost,
+            city=r.city,
+            sector=r.sector,
             is_seen=True,
             first_run_id=r.run_id,
         )

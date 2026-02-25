@@ -42,6 +42,16 @@ Dati i dettagli di un'opportunità di appalto pubblico o di un evento, produci u
   Per gli eventi: la data dell'evento (o la data di inizio se è un periodo). \
   Per i bandi/concorsi: la scadenza per la presentazione delle offerte. \
   Se non trovi alcuna data nel testo, restituisci null.
+- **event_format** (stringa o null): solo per eventi. Una tra: "In presenza", "Streaming", "On demand". \
+  Null se non è un evento o se non è determinabile.
+- **event_cost** (stringa o null): solo per eventi. Una tra: "Gratuito", "A pagamento", "Su invito". \
+  Null se non è un evento o se non è determinabile.
+- **city** (stringa o null): la città dove si svolge l'evento (solo per eventi in presenza). \
+  Null se non è un evento, se è online, o se la città non è indicata.
+- **sector** (stringa o null): il settore di mercato/industria a cui è rivolta l'opportunità. \
+  Ad esempio: "Healthcare", "Finance", "PA", "Manufacturing", "Retail", "Energy", "Telco", \
+  "Education", "Transportation", "Defense", "Cross-sector". \
+  Null se non è determinabile.
 
 Sii rigoroso: assegna score >= 7 solo se l'opportunità corrisponde chiaramente alle competenze chiave. \
 Score 4-6 per corrispondenze parziali. Score 1-3 per scarsa o nessuna corrispondenza.\
@@ -147,6 +157,7 @@ class GeminiClassifier:
     def _build_user_prompt(opp: Opportunity) -> str:
         parts = [
             f"**Title:** {opp.title}",
+            f"**Type:** {opp.opportunity_type.value}",
             f"**Description:** {opp.description}" if opp.description else "",
             f"**Contracting authority:** {opp.contracting_authority}" if opp.contracting_authority else "",
             f"**Country:** {opp.country}" if opp.country else "",

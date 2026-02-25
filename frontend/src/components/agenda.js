@@ -54,6 +54,24 @@ function formatDeadline(dateStr) {
   })
 }
 
+function formatColor(fmt) {
+  const m = {
+    'In presenza': 'bg-orange-50 text-orange-700',
+    'Streaming': 'bg-cyan-50 text-cyan-700',
+    'On demand': 'bg-indigo-50 text-indigo-700',
+  }
+  return m[fmt] || 'bg-gray-100 text-gray-600'
+}
+
+function costColor(cost) {
+  const m = {
+    'Gratuito': 'bg-green-50 text-green-700',
+    'A pagamento': 'bg-rose-50 text-rose-700',
+    'Su invito': 'bg-amber-50 text-amber-700',
+  }
+  return m[cost] || 'bg-gray-100 text-gray-600'
+}
+
 export function agendaPage() {
   return {
     loading: true,
@@ -165,5 +183,7 @@ export function agendaPage() {
     typeColor,
     categoryColor,
     formatDeadline,
+    formatColor,
+    costColor,
   }
 }

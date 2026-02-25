@@ -93,6 +93,14 @@ Per ogni evento trovato, restituisci un oggetto JSON con questi campi:
   Se l'evento dura più giorni, usa la data di inizio. Se non trovi la data, null.
 - "location" (stringa o null): il luogo dell'evento (città, sede, online, etc.)
 - "url" (stringa o null): URL specifico dell'evento, se diverso dall'URL della pagina
+- "city" (stringa o null): solo la città dove si svolge l'evento (es. "Milano", "Roma", \
+  "Las Vegas"). Null se online o non specificata.
+- "country" (stringa o null): codice paese ISO a 2 lettere (es. "IT", "US", "DE"). \
+  Default "IT" se non specificato.
+- "event_format" (stringa o null): una tra "In presenza", "Streaming", "On demand". \
+  Null se non determinabile.
+- "cost" (stringa o null): una tra "Gratuito", "A pagamento", "Su invito". \
+  Null se non determinabile.
 
 Restituisci un array JSON di eventi. Se la pagina non contiene eventi IT rilevanti, \
 restituisci un array vuoto [].
@@ -393,6 +401,10 @@ class WebEventsCollector(BaseCollector):
             event_url = gemini_url if gemini_url.startswith("http") else page_url
 
             deadline = self._parse_date(evt.get("event_date"))
+            country = (evt.get("country") or "IT").strip().upper()[:2]
+            city = (evt.get("city") or "").strip() or None
+            event_format = (evt.get("event_format") or "").strip() or None
+            event_cost = (evt.get("cost") or "").strip() or None
 
             short_hash = hashlib.sha256(
                 f"{page_url}:{title}".encode(),
@@ -404,6 +416,17 @@ class WebEventsCollector(BaseCollector):
                     else f"📍 {location}"
                 )
 
+            # Store extracted metadata in description for the classifier
+            meta_parts: list[str] = []
+            if event_format:
+                meta_parts.append(f"Formato: {event_format}")
+            if event_cost:
+                meta_parts.append(f"Costo: {event_cost}")
+            if city:
+                meta_parts.append(f"Città: {city}")
+            if meta_parts:
+                description = f"{description}\n{'  |  '.join(meta_parts)}" if description else "  |  ".join(meta_parts)
+
             opp = Opportunity(
                 id=f"WEB-{short_hash}",
                 title=title,
@@ -412,7 +435,7 @@ class WebEventsCollector(BaseCollector):
                 deadline=deadline,
                 estimated_value=None,
                 currency="EUR",
-                country="IT",
+                country=country,
                 source_url=event_url,
                 source=Source.EVENT,
                 opportunity_type=OpportunityType.EVENTO,

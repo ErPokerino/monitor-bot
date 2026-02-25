@@ -577,12 +577,23 @@
     <div class="meta-grid">
       <span><span class="key">Tipo:</span> <span class="type-badge type-{{ opp.opportunity_type.value }}">{{ opp.opportunity_type.value }}</span></span>
       <span><span class="key">Ente:</span> {{ opp.contracting_authority or "N/A" }}</span>
-      <span><span class="key">Paese:</span> {{ opp.country or "N/A" }}</span>
+      <span><span class="key">Luogo:</span> {{ [cls.city, opp.country]|select|join(', ') or "N/A" }}</span>
+      {% if cls.event_format %}
+      <span><span class="key">Formato:</span> {{ cls.event_format.value if cls.event_format.value is defined else cls.event_format }}</span>
+      {% endif %}
+      {% if cls.event_cost %}
+      <span><span class="key">Costo:</span> {{ cls.event_cost.value if cls.event_cost.value is defined else cls.event_cost }}</span>
+      {% endif %}
+      {% if cls.sector %}
+      <span><span class="key">Settore:</span> {{ cls.sector }}</span>
+      {% endif %}
       {% if opp.estimated_value %}
       <span><span class="key">Valore:</span> {{ "{:,.0f}".format(opp.estimated_value) }} {{ opp.currency }}</span>
       {% endif %}
       <span><span class="key">Categoria:</span> <span class="cat-badge cat-{{ cls.category.value }}">{{ cls.category.value }}</span></span>
+      {% if opp.opportunity_type.value != 'Evento' %}
       <span><span class="key">Fonte:</span> {{ opp.source.value }}</span>
+      {% endif %}
     </div>
 
     <div class="reason">{{ cls.reason }}</div>

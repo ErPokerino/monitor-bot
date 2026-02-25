@@ -148,11 +148,14 @@
                                 <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
                                     <span class="inline-flex items-center gap-1"><span :class="typeDot(r.opportunity_type)" class="h-1.5 w-1.5 rounded-full"></span> <span x-text="r.opportunity_type"></span></span>
                                     <template x-if="r.category"><span class="rounded bg-gray-100 px-1.5 py-0.5 font-medium" x-text="r.category"></span></template>
+                                    <template x-if="r.event_format"><span class="rounded bg-orange-50 px-1.5 py-0.5 font-medium text-orange-700" x-text="r.event_format"></span></template>
+                                    <template x-if="r.event_cost"><span class="rounded bg-green-50 px-1.5 py-0.5 font-medium text-green-700" x-text="r.event_cost"></span></template>
+                                    <template x-if="r.sector"><span class="rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-700" x-text="r.sector"></span></template>
                                     <template x-if="r.contracting_authority"><span x-text="r.contracting_authority"></span></template>
-                                    <template x-if="r.country"><span x-text="r.country"></span></template>
+                                    <template x-if="r.city || r.country"><span x-text="[r.city, r.country].filter(Boolean).join(', ')"></span></template>
                                     <template x-if="r.deadline"><span class="font-medium" :class="isDeadlinePast(r.deadline)?'text-red-500':'text-navy-800'" x-text="'Scadenza: ' + formatDeadline(r.deadline)"></span></template>
                                     <template x-if="r.estimated_value"><span class="font-medium text-navy-800" x-text="formatValue(r.estimated_value, r.currency)"></span></template>
-                                    <span class="text-gray-400" x-text="r.source"></span>
+                                    <template x-if="r.source && r.opportunity_type !== 'Evento'"><span class="text-gray-400" x-text="r.source"></span></template>
                                 </div>
                             </div>
                             <template x-if="r.source_url">

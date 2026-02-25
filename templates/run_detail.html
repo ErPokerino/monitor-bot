@@ -70,11 +70,20 @@
                         {% if r.category %}
                         <span class="rounded bg-gray-100 px-1.5 py-0.5 font-medium">{{ r.category }}</span>
                         {% endif %}
+                        {% if r.event_format %}
+                        <span class="rounded bg-orange-50 px-1.5 py-0.5 font-medium text-orange-700">{{ r.event_format }}</span>
+                        {% endif %}
+                        {% if r.event_cost %}
+                        <span class="rounded bg-green-50 px-1.5 py-0.5 font-medium text-green-700">{{ r.event_cost }}</span>
+                        {% endif %}
+                        {% if r.sector %}
+                        <span class="rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-700">{{ r.sector }}</span>
+                        {% endif %}
                         {% if r.contracting_authority %}
                         <span>{{ r.contracting_authority }}</span>
                         {% endif %}
-                        {% if r.country %}
-                        <span>{{ r.country }}</span>
+                        {% if r.city or r.country %}
+                        <span>{{ [r.city, r.country]|select|join(', ') }}</span>
                         {% endif %}
                         {% if r.deadline %}
                         <span class="font-medium {% if r.deadline < today %}text-red-500{% else %}text-navy-800{% endif %}">Scadenza: {{ r.deadline.strftime('%d/%m/%Y') }}</span>
@@ -82,7 +91,9 @@
                         {% if r.estimated_value %}
                         <span class="font-medium text-navy-800">{{ "{:,.0f}".format(r.estimated_value) }} {{ r.currency }}</span>
                         {% endif %}
+                        {% if r.opportunity_type != 'Evento' %}
                         <span class="text-gray-400">{{ r.source }}</span>
+                        {% endif %}
                     </div>
                 </div>
                 {% if r.source_url %}

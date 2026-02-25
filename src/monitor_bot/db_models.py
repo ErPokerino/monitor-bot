@@ -121,6 +121,10 @@ class SearchResult(Base):
     category: Mapped[str] = mapped_column(String(50), nullable=False)
     ai_reasoning: Mapped[str] = mapped_column(Text, default="")
     key_requirements: Mapped[str] = mapped_column(Text, default="")
+    event_format: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    event_cost: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    city: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    sector: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     run: Mapped[SearchRun] = relationship(back_populates="results")
 
@@ -144,6 +148,10 @@ class AgendaItem(Base):
     category: Mapped[str] = mapped_column(String(50), nullable=False)
     ai_reasoning: Mapped[str] = mapped_column(Text, default="")
     key_requirements: Mapped[str] = mapped_column(Text, default="")
+    event_format: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    event_cost: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    city: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    sector: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     evaluation: Mapped[Evaluation | None] = mapped_column(Enum(Evaluation), nullable=True)
     is_enrolled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

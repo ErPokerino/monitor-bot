@@ -87,6 +87,12 @@ pubblico oppure un evento IT. Restituisci un singolo oggetto JSON con:
 - "estimated_value" (numero o null): valore in EUR, se indicato (solo per bandi)
 - "location" (stringa o null): luogo (solo per eventi)
 - "country" (stringa): codice paese ISO a 2 lettere (default "IT")
+- "city" (stringa o null): città dove si svolge l'evento (solo per eventi in presenza). \
+  Null se online o non specificata.
+- "event_format" (stringa o null): solo per eventi. Una tra "In presenza", "Streaming", \
+  "On demand". Null se non determinabile o se è un bando.
+- "cost" (stringa o null): solo per eventi. Una tra "Gratuito", "A pagamento", "Su invito". \
+  Null se non determinabile o se è un bando.
 
 Se la pagina NON contiene un bando o evento rilevante, restituisci:
 {"type": "non_rilevante"}
@@ -345,6 +351,21 @@ class WebSearchCollector(BaseCollector):
 
         if location and opp_type == OpportunityType.EVENTO:
             description = f"{description}\n📍 {location}" if description else f"📍 {location}"
+
+        city = (data.get("city") or "").strip() or None
+        event_format = (data.get("event_format") or "").strip() or None
+        event_cost = (data.get("cost") or "").strip() or None
+
+        if opp_type == OpportunityType.EVENTO:
+            meta_parts: list[str] = []
+            if event_format:
+                meta_parts.append(f"Formato: {event_format}")
+            if event_cost:
+                meta_parts.append(f"Costo: {event_cost}")
+            if city:
+                meta_parts.append(f"Città: {city}")
+            if meta_parts:
+                description = f"{description}\n{'  |  '.join(meta_parts)}" if description else "  |  ".join(meta_parts)
 
         short_hash = hashlib.sha256(
             f"{page_url}:{title}".encode(),

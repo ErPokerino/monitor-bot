@@ -115,8 +115,11 @@ src/monitor_bot/
 Source          # TED | ANAC | EVENT | REGIONALE | WEB_SEARCH
 OpportunityType # BANDO | CONCORSO | EVENTO
 Category        # SAP | DATA | AI | CLOUD | OTHER
+EventFormat     # IN_PRESENZA | STREAMING | ON_DEMAND
+EventCost       # GRATUITO | A_PAGAMENTO | SU_INVITO
 Opportunity      # id, title, description, deadline, source_url, ...
-Classification  # relevance_score, category, reason, key_requirements, extracted_date
+Classification  # relevance_score, category, reason, key_requirements, extracted_date,
+                # event_format, event_cost, city, sector
 ClassifiedOpportunity  # opportunity + classification
 ```
 
@@ -130,10 +133,13 @@ AgendaItem:
   opportunity_id, title, description, contracting_authority,
   deadline, estimated_value, currency, country, source,
   opportunity_type, relevance_score, category, ai_reasoning, key_requirements,
+  event_format (nullable), event_cost (nullable), city (nullable), sector (nullable),
   evaluation (Enum: INTERESTED | REJECTED, nullable),
   is_enrolled (Boolean), feedback_recommend (Boolean), feedback_return (Boolean),
   is_seen (Boolean), first_seen_at, evaluated_at, first_run_id (FK)
 ```
+
+I campi `event_format`, `event_cost`, `city` e `sector` sono popolati dalla classificazione AI e contengono rispettivamente: tipologia di partecipazione (In presenza / Streaming / On demand), modello di costo (Gratuito / A pagamento / Su invito), citta' dell'evento e settore di mercato verticale.
 
 La tabella viene popolata automaticamente dopo ogni esecuzione pipeline (upsert per `source_url`). Gli elementi con `evaluation=REJECTED` o `deadline < today` vengono esclusi dalle ricerche future.
 
@@ -185,6 +191,7 @@ La tabella viene popolata automaticamente dopo ogni esecuzione pipeline (upsert 
 - **Prompt**: system prompt con profilo azienda + istruzioni per JSON
 - **Output**: `Classification` (Pydantic) con `response_schema`
 - **Structured output**: `response_mime_type="application/json"`
+- **Campi evento**: per le opportunita' di tipo Evento, il classificatore estrae anche `event_format` (In presenza/Streaming/On demand), `event_cost` (Gratuito/A pagamento/Su invito), `city` (citta' dell'evento) e `sector` (settore di mercato)
 
 ### 4.6 date_enricher.py
 

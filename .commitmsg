@@ -1,0 +1,9 @@
+fix: robust agenda backfill for PostgreSQL, HTML cache-control headers
+
+- Backfill now always checks for missing items instead of skipping when
+  agenda already has entries; adds extensive logging and try/except to
+  prevent startup failures.
+- PostgreSQL information_schema query filters by table_schema='public'.
+- Boolean column defaults use SQL-compatible 'true'/'false' literals.
+- HTML responses served with no-cache headers to prevent stale navbar.
+- Removed dead getDashboard API call and unused historyPage import.

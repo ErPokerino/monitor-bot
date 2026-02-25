@@ -76,6 +76,10 @@ async def save_results(
             category=cls.category.value,
             ai_reasoning=cls.reason,
             key_requirements=json.dumps(cls.key_requirements, ensure_ascii=False),
+            event_format=cls.event_format.value if cls.event_format else None,
+            event_cost=cls.event_cost.value if cls.event_cost else None,
+            city=cls.city,
+            sector=cls.sector,
         )
         db.add(result)
         saved_results.append(result)

@@ -37,7 +37,7 @@ Il sistema raccoglie opportunità da sei tipi di fonti:
 
 - **Bando**: gara d'appalto per servizi/prodotti IT
 - **Concorso**: concorso di progettazione o simile
-- **Evento**: conferenza, summit, workshop, webinar, hackathon
+- **Evento**: conferenza, summit, workshop, webinar, hackathon. Per ogni evento vengono raccolte informazioni aggiuntive: formato (in presenza / streaming / on demand), costo (gratuito / a pagamento / su invito), luogo (nazione e citta') e settore di riferimento
 
 ### 2.3 Classificazione AI
 
@@ -48,6 +48,13 @@ Ogni opportunità viene analizzata da Google Gemini con un **profilo aziendale**
 - **Motivazione**: breve spiegazione del punteggio
 - **Requisiti chiave**: requisiti principali (bandi) o temi (eventi)
 - **Data estratta**: scadenza o data evento, se presente nel testo
+
+Per le opportunita' di tipo **Evento**, vengono estratti anche:
+
+- **Formato evento**: In presenza, Streaming, On demand (opzioni esclusive)
+- **Costo**: Gratuito, A pagamento, Su invito
+- **Citta'**: luogo fisico dell'evento (solo per eventi in presenza)
+- **Settore**: mercato verticale a cui si rivolge l'evento (es. Healthcare, Finance, PA, Manufacturing, Retail, Energy, Telco, Education, Cross-sector)
 
 ### 2.4 Estrazione date
 
@@ -82,7 +89,7 @@ Il report HTML include:
 - Filtro per fonte/ente (dropdown con tutte le fonti presenti)
 - Filtro per categoria: SAP, Cloud, AI, Data, Other (con contatori)
 - Ripartizione per categoria
-- Card per ogni opportunità con: titolo, data/scadenza, ente, valore, motivazione AI, link alla fonte
+- Card per ogni opportunità con: titolo, data/scadenza, ente, valore, motivazione AI, link alla fonte, e per gli eventi: formato, costo, luogo e settore
 - Tempo di esecuzione nel footer
 
 ### 2.8 Agenda

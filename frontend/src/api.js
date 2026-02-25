@@ -40,6 +40,19 @@ async function request(method, path, body = null) {
 export const api = {
   getDashboard:  ()            => request('GET', '/dashboard'),
 
+  getAgenda:     (params = {}) => {
+    const q = new URLSearchParams()
+    for (const [k, v] of Object.entries(params)) { if (v != null && v !== '') q.set(k, v) }
+    return request('GET', `/agenda?${q}`)
+  },
+  getAgendaStats:()            => request('GET', '/agenda/stats'),
+  getAgendaExpiring:(days=30)  => request('GET', `/agenda/expiring?days=${days}`),
+  getAgendaPastEvents:()       => request('GET', '/agenda/past-events'),
+  evaluateItem:  (id, evaluation) => request('PATCH', `/agenda/${id}/evaluate`, { evaluation }),
+  enrollItem:    (id, is_enrolled) => request('PATCH', `/agenda/${id}/enroll`, { is_enrolled }),
+  feedbackItem:  (id, recommend, return_next_year) => request('PATCH', `/agenda/${id}/feedback`, { recommend, return_next_year }),
+  markSeen:      (ids = null, all = false) => request('POST', '/agenda/mark-seen', { ids, all }),
+
   getSources:    ()            => request('GET', '/sources'),
   createSource:  (d)           => request('POST', '/sources', d),
   updateSource:  (id, d)       => request('PATCH', `/sources/${id}`, d),
@@ -66,7 +79,7 @@ export const api = {
   getSettings:   ()            => request('GET', '/settings'),
   updateSettings:(d)           => request('PUT', '/settings', d),
 
-  chatMessage:   (message, run_id = null) => request('POST', '/chat/message', { message, run_id }),
+  chatMessage:   (message, { useAgenda = false, runId = null } = {}) => request('POST', '/chat/message', { message, run_id: runId, use_agenda: useAgenda }),
   chatReset:     ()            => request('DELETE', '/chat/history'),
   chatStatus:    ()            => request('GET', '/chat/status'),
 

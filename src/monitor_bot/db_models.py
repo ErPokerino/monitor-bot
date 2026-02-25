@@ -42,6 +42,11 @@ class RunStatus(str, enum.Enum):
     CANCELLED = "cancelled"
 
 
+class Evaluation(str, enum.Enum):
+    INTERESTED = "interested"
+    REJECTED = "rejected"
+
+
 # ------------------------------------------------------------------
 # Tables
 # ------------------------------------------------------------------
@@ -118,6 +123,37 @@ class SearchResult(Base):
     key_requirements: Mapped[str] = mapped_column(Text, default="")
 
     run: Mapped[SearchRun] = relationship(back_populates="results")
+
+
+class AgendaItem(Base):
+    __tablename__ = "agenda_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source_url: Mapped[str] = mapped_column(String(2048), nullable=False, unique=True, index=True)
+    opportunity_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    title: Mapped[str] = mapped_column(String(1024), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="")
+    contracting_authority: Mapped[str] = mapped_column(String(512), default="")
+    deadline: Mapped[date | None] = mapped_column(Date, nullable=True)
+    estimated_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    currency: Mapped[str] = mapped_column(String(10), default="EUR")
+    country: Mapped[str] = mapped_column(String(10), default="")
+    source: Mapped[str] = mapped_column(String(50), nullable=False)
+    opportunity_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    relevance_score: Mapped[int] = mapped_column(Integer, nullable=False)
+    category: Mapped[str] = mapped_column(String(50), nullable=False)
+    ai_reasoning: Mapped[str] = mapped_column(Text, default="")
+    key_requirements: Mapped[str] = mapped_column(Text, default="")
+
+    evaluation: Mapped[Evaluation | None] = mapped_column(Enum(Evaluation), nullable=True)
+    is_enrolled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    feedback_recommend: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    feedback_return: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    is_seen: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime, default=_now_rome, nullable=False)
+    evaluated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    first_run_id: Mapped[int] = mapped_column(Integer, ForeignKey("search_runs.id"), nullable=False)
 
 
 class AppSetting(Base):

@@ -70,6 +70,7 @@ src/monitor_bot/
 ├── genai_client.py      # Factory client Google GenAI (Vertex AI / API key)
 ├── app.py               # FastAPI app factory + middleware auth
 ├── routes/
+│   ├── api_agenda.py    # Agenda CRUD e valutazioni
 │   ├── api_auth.py      # Login e validazione token
 │   ├── api_chat.py      # Chatbot AI testuale
 │   ├── api_voice.py     # Voice mode WebSocket (Gemini Live)
@@ -117,6 +118,23 @@ Opportunity      # id, title, description, deadline, source_url, ...
 Classification  # relevance_score, category, reason, key_requirements, extracted_date
 ClassifiedOpportunity  # opportunity + classification
 ```
+
+### 4.3b db_models.py – AgendaItem
+
+Tabella `agenda_items` per la gestione cross-run delle opportunita' con valutazione utente:
+
+```python
+AgendaItem:
+  id, source_url (unique, chiave dedup),
+  opportunity_id, title, description, contracting_authority,
+  deadline, estimated_value, currency, country, source,
+  opportunity_type, relevance_score, category, ai_reasoning, key_requirements,
+  evaluation (Enum: INTERESTED | REJECTED, nullable),
+  is_enrolled (Boolean), feedback_recommend (Boolean), feedback_return (Boolean),
+  is_seen (Boolean), first_seen_at, evaluated_at, first_run_id (FK)
+```
+
+La tabella viene popolata automaticamente dopo ogni esecuzione pipeline (upsert per `source_url`). Gli elementi con `evaluation=REJECTED` o `deadline < today` vengono esclusi dalle ricerche future.
 
 ### 4.4 collectors/
 
@@ -209,6 +227,16 @@ ClassifiedOpportunity  # opportunity + classification
 - Autenticazione via query parameter (WebSocket non supporta header)
 - 3 task asincroni: relay client->Gemini, relay Gemini->client, gestione lifecycle
 - Voice name: "Aoede", lingua: italiano
+
+**api_agenda.py**: Gestione Agenda con valutazione opportunita', iscrizione eventi e feedback.
+- `GET /api/agenda`: lista elementi attivi con filtri (tab, type, category, sort, search, paginazione)
+- `GET /api/agenda/stats`: contatori per badge notifica (unseen_count, pending_count, expiring_count)
+- `GET /api/agenda/expiring?days=N`: elementi in scadenza entro N giorni
+- `GET /api/agenda/past-events`: eventi passati con iscrizione per feedback
+- `PATCH /api/agenda/{id}/evaluate`: valutazione (interested/rejected)
+- `PATCH /api/agenda/{id}/enroll`: toggle iscrizione evento
+- `PATCH /api/agenda/{id}/feedback`: feedback post-evento
+- `POST /api/agenda/mark-seen`: segna elementi come visti
 
 **api_dashboard.py / api_sources.py / api_queries.py / api_runs.py / api_settings.py**: CRUD e business logic per le rispettive risorse.
 

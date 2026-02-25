@@ -48,12 +48,19 @@
                     <span x-text="link.label"></span>
                 </a>
             </template>
+            <!-- Notification bell -->
+            <div class="relative ml-3" x-data="notificationBell()">
+                <button @click="goToAgenda()" class="relative p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-navy-800 transition-colors">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                    <span x-show="count > 0" x-text="count > 99 ? '99+' : count" class="absolute -top-1 -right-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white" :class="{ 'animate-pulse': pulse }"></span>
+                </button>
+            </div>
         </div>
     </div>
 </nav>
 <!-- Mobile bottom nav -->
 <nav class="fixed bottom-0 inset-x-0 z-50 border-t border-gray-200 bg-white md:hidden" x-data="navbar()">
-    <div class="grid grid-cols-4 h-16">
+    <div class="grid grid-cols-5 h-16">
         <template x-for="link in links" :key="link.href">
             <a :href="link.href" class="flex flex-col items-center justify-center gap-1 text-xs font-medium transition-colors" :class="link.active ? 'text-accent-600' : 'text-gray-500'">
                 <span x-html="link.icon" class="flex-shrink-0 [&>svg]:h-5 [&>svg]:w-5"></span>
@@ -91,34 +98,21 @@
         </div>
 
         <div class="flex items-center gap-2 sm:gap-3">
-            <!-- Run selector -->
-            <div class="relative flex-1 sm:flex-none" x-data="{ open: false }">
-                <button @click="open = !open" class="w-full sm:w-auto inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-                    <svg class="h-4 w-4 flex-shrink-0 text-accent-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                    <span class="truncate" x-text="selectedRunLabel()"></span>
-                    <svg class="h-3 w-3 flex-shrink-0 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                </button>
-                <div x-show="open" @click.outside="open=false" x-transition class="absolute right-0 sm:right-0 left-0 sm:left-auto mt-1 sm:w-72 rounded-lg border border-gray-200 bg-white py-1 shadow-xl z-20 max-h-64 overflow-y-auto">
-                    <button @click="selectRun(null); open=false" class="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 flex items-center gap-2" :class="!selectedRunId ? 'text-accent-600 font-medium' : 'text-gray-600'">
-                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
-                        Nessuna esecuzione
-                    </button>
-                    <div class="border-t border-gray-100 my-1"></div>
-                    <template x-for="r in runs" :key="r.id">
-                        <button @click="selectRun(r.id); open=false" class="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 flex items-center justify-between gap-2" :class="selectedRunId === r.id ? 'text-accent-600 font-medium bg-accent-50' : 'text-gray-600'">
-                            <span class="truncate">
-                                <span class="font-medium" x-text="'#' + r.id"></span>
-                                <span class="text-gray-400 mx-1">&middot;</span>
-                                <span x-text="formatDate(r.started_at)"></span>
-                            </span>
-                            <span class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 flex-shrink-0" x-text="r.total_relevant + ' ril.'"></span>
-                        </button>
-                    </template>
-                    <template x-if="!runs.length">
-                        <p class="px-4 py-3 text-sm text-gray-400 text-center">Nessuna esecuzione completata</p>
-                    </template>
-                </div>
-            </div>
+            <!-- Agenda context toggle -->
+            <button
+                @click="toggleAgenda()"
+                class="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-all"
+                :class="useAgenda
+                    ? 'border-accent-300 bg-accent-50 text-accent-700 hover:bg-accent-100'
+                    : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'"
+                :disabled="loading"
+            >
+                <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                <span class="hidden sm:inline" x-text="useAgenda ? 'Agenda attiva' : 'Agenda off'"></span>
+                <span class="relative flex h-5 w-9 flex-shrink-0 rounded-full transition-colors" :class="useAgenda ? 'bg-accent-500' : 'bg-gray-300'">
+                    <span class="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform" :class="useAgenda ? 'translate-x-4' : 'translate-x-0'"></span>
+                </span>
+            </button>
 
             <!-- New chat button (desktop) -->
             <div class="relative hidden sm:block" x-data="{ confirmReset: false }">

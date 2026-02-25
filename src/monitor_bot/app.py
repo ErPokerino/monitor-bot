@@ -16,6 +16,7 @@ from sqlalchemy import update
 from monitor_bot.config import Settings
 from monitor_bot.database import async_session, init_db
 from monitor_bot.db_models import RunStatus, SearchRun, _now_rome
+from monitor_bot.routes.api_agenda import router as agenda_router
 from monitor_bot.routes.api_auth import router as auth_router
 from monitor_bot.routes.api_auth import validate_token
 from monitor_bot.routes.api_chat import router as chat_router
@@ -144,6 +145,7 @@ def create_app() -> FastAPI:
         return JSONResponse({"detail": "Invalid or expired token"}, status_code=401)
 
     app.include_router(auth_router)
+    app.include_router(agenda_router)
     app.include_router(dashboard_router)
     app.include_router(sources_router)
     app.include_router(queries_router)

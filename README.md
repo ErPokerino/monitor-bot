@@ -67,7 +67,8 @@ Aprire il browser su **http://localhost:5173**.
 | Pagina | Percorso | Descrizione |
 |--------|----------|-------------|
 | Login | `/login.html` | Autenticazione utente (username/password) |
-| Dashboard | `/` | Panoramica con statistiche, storico esecuzioni e onboarding carousel post-login |
+| Agenda | `/` | Valutazione opportunità (pollice su/giù), iscrizione eventi, pannello scadenze, feedback eventi passati |
+| Esecuzioni | `/esecuzioni.html` | Storico completo delle esecuzioni con selezione multipla e cancellazione |
 | Settings | `/configurazioni.html` | Link diretti, ricerche internet, impostazioni (soglia pertinenza, profilo azienda, schedulazione, notifiche email) |
 | Ricerca | `/esegui.html` | Avvio pipeline con barra di progresso in tempo reale |
 | Dettaglio | `/dettaglio.html?id=N` | Risultati di una singola esecuzione con filtri (tipo, categoria, scadenza) e export multi-formato (CSV, HTML, PDF) |
@@ -77,6 +78,14 @@ Aprire il browser su **http://localhost:5173**.
 
 | Metodo | Endpoint | Descrizione |
 |--------|----------|-------------|
+| GET | `/api/agenda` | Lista elementi agenda (filtri: tab, type, category, sort, search) |
+| GET | `/api/agenda/stats` | Contatori notifiche (non visti, da valutare, in scadenza) |
+| GET | `/api/agenda/expiring` | Elementi in scadenza entro N giorni |
+| GET | `/api/agenda/past-events` | Eventi passati con iscrizione per feedback |
+| PATCH | `/api/agenda/{id}/evaluate` | Valutazione elemento (interested/rejected) |
+| PATCH | `/api/agenda/{id}/enroll` | Iscrizione/disiscrizione evento |
+| PATCH | `/api/agenda/{id}/feedback` | Feedback post-evento (consiglio, ritorno) |
+| POST | `/api/agenda/mark-seen` | Segna elementi come visti |
 | GET | `/api/dashboard` | Statistiche dashboard |
 | GET/POST | `/api/sources` | Lista e creazione link diretti |
 | PATCH/DELETE | `/api/sources/{id}` | Modifica e cancellazione |
@@ -126,6 +135,7 @@ monitor-bot/
 │   ├── db_models.py           # ORM models
 │   ├── schemas.py             # Pydantic schemas
 │   ├── routes/                # API endpoints
+│   │   ├── api_agenda.py      # Agenda (valutazioni, iscrizioni, feedback)
 │   │   ├── api_auth.py        # Autenticazione (login/token)
 │   │   ├── api_chat.py        # Chatbot AI (testo)
 │   │   ├── api_voice.py       # Voice mode (Gemini Live WebSocket)
@@ -135,6 +145,7 @@ monitor-bot/
 │   │   ├── api_runs.py
 │   │   └── api_settings.py
 │   ├── services/              # Business logic
+│   │   ├── agenda.py
 │   │   ├── sources.py
 │   │   ├── queries.py
 │   │   ├── runs.py
@@ -152,7 +163,8 @@ monitor-bot/
 │   ├── package.json
 │   ├── vite.config.js
 │   ├── tailwind.config.js
-│   ├── index.html             # Dashboard + onboarding carousel
+│   ├── index.html             # Agenda + onboarding carousel
+│   ├── esecuzioni.html        # Storico esecuzioni
 │   ├── login.html             # Login page
 │   ├── chatbot.html           # Chatbot + voice mode
 │   ├── configurazioni.html    # Settings (3 tab)

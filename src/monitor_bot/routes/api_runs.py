@@ -17,6 +17,7 @@ from monitor_bot.database import async_session, get_session
 from monitor_bot.db_models import RunStatus, SearchRun
 from monitor_bot.pipeline import ProgressCallback, run_pipeline
 from monitor_bot.schemas import BatchDeleteRequest, BatchDeleteResponse, RunDetailOut, RunOut
+from monitor_bot.services import agenda as agenda_svc
 from monitor_bot.services import queries as query_svc
 from monitor_bot.services import runs as run_svc
 from monitor_bot.services import settings as settings_svc
@@ -153,10 +154,11 @@ async def start_run(db: AsyncSession = Depends(get_session)):
         raise HTTPException(409, "A pipeline is already running")
 
     settings = Settings()
+    excluded_urls = await agenda_svc.get_excluded_urls(db)
     run = await run_svc.create_run(db, config_snapshot={"scope": settings.scope_summary()})
     _current_run_id = run.id
-    _current_task = asyncio.create_task(_execute_pipeline(run.id, settings))
-    logger.info("Background task created for run %d", run.id)
+    _current_task = asyncio.create_task(_execute_pipeline(run.id, settings, excluded_urls))
+    logger.info("Background task created for run %d (excluding %d URLs)", run.id, len(excluded_urls))
     return run
 
 
@@ -196,7 +198,7 @@ async def delete_runs_batch(
 # Pipeline execution
 # ------------------------------------------------------------------
 
-async def _execute_pipeline(run_id: int, settings: Settings) -> None:
+async def _execute_pipeline(run_id: int, settings: Settings, excluded_urls: set[str] | None = None) -> None:
     """Background task that runs the full pipeline and persists results."""
     global _current_run_id, _current_task
     logger.info("Pipeline task started for run %d", run_id)
@@ -243,7 +245,7 @@ async def _execute_pipeline(run_id: int, settings: Settings) -> None:
                      len(active_sources), len(active_queries), settings.relevance_threshold, timeout_minutes)
 
         result = await asyncio.wait_for(
-            run_pipeline(settings, progress=progress, use_cache=False),
+            run_pipeline(settings, progress=progress, use_cache=False, excluded_urls=excluded_urls),
             timeout=timeout_minutes * 60,
         )
 

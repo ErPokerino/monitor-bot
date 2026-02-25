@@ -57,3 +57,23 @@ tbody tr { transition: background-color 0.15s ease; }
     from { opacity: 1; transform: translateY(0) scale(1); }
     to   { opacity: 0; transform: translateY(-8px) scale(0.95); }
 }
+
+/* Agenda card swipe animations */
+.translate-x-full  { transform: translateX(100%); }
+.-translate-x-full { transform: translateX(-100%); }
+
+@keyframes bellShake {
+    0%, 100% { transform: rotate(0); }
+    15%      { transform: rotate(14deg); }
+    30%      { transform: rotate(-14deg); }
+    45%      { transform: rotate(10deg); }
+    60%      { transform: rotate(-6deg); }
+    75%      { transform: rotate(2deg); }
+}
+
+.line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}

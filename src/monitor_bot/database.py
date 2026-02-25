@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from sqlalchemy import event
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.pool import NullPool
@@ -44,13 +44,47 @@ if _is_sqlite:
         cursor.close()
 
 
+def _add_missing_columns(connection) -> None:
+    """Add columns that exist in ORM models but not yet in the database tables."""
+    import logging
+    log = logging.getLogger(__name__)
+    dialect_name = connection.dialect.name
+
+    for table in Base.metadata.sorted_tables:
+        if dialect_name == "sqlite":
+            existing = {
+                row[1]
+                for row in connection.execute(text(f"PRAGMA table_info('{table.name}')"))
+            }
+        else:
+            rows = connection.execute(text(
+                "SELECT column_name FROM information_schema.columns "
+                f"WHERE table_name = '{table.name}'"
+            ))
+            existing = {row[0] for row in rows}
+
+        for col in table.columns:
+            if col.name not in existing:
+                col_type = col.type.compile(dialect=connection.dialect)
+                default = ""
+                if col.default is not None and col.default.is_scalar:
+                    val = col.default.arg
+                    default = f" DEFAULT {val!r}" if isinstance(val, str) else f" DEFAULT {val}"
+                elif col.nullable:
+                    default = " DEFAULT NULL"
+                stmt = f"ALTER TABLE {table.name} ADD COLUMN {col.name} {col_type}{default}"
+                log.info("Schema migration: %s", stmt)
+                connection.execute(text(stmt))
+
+
 async def init_db() -> None:
-    """Create all tables if they don't exist."""
+    """Create all tables if they don't exist, then add any missing columns."""
     if _is_sqlite:
         db_path = Path("data") / "monitor.db"
         db_path.parent.mkdir(parents=True, exist_ok=True)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_add_missing_columns)
 
 
 async def get_session() -> AsyncSession:  # noqa: D401 – FastAPI dependency

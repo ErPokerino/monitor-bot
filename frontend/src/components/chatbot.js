@@ -1,6 +1,5 @@
 import { api } from '../api.js'
 import { marked } from 'marked'
-import { formatDate } from './helpers.js'
 
 marked.setOptions({ breaks: true, gfm: true })
 
@@ -9,9 +8,7 @@ export function chatbotPage() {
     messages: [],
     input: '',
     loading: false,
-    runs: [],
-    selectedRunId: null,
-    showRunSelector: false,
+    useAgenda: true,
     voiceMode: false,
     voiceConnected: false,
     _ws: null,
@@ -27,16 +24,12 @@ export function chatbotPage() {
         if (saved) {
           const parsed = JSON.parse(saved)
           this.messages = parsed.messages || []
-          this.selectedRunId = parsed.selectedRunId ?? null
+          this.useAgenda = parsed.useAgenda ?? true
         }
 
-        const [runs, status] = await Promise.all([
-          api.getRuns(),
-          api.chatStatus(),
-        ])
-        this.runs = (runs || []).filter(r => r.status === 'completed' && r.total_relevant > 0)
-        if (!saved && status.loaded_run_id) {
-          this.selectedRunId = status.loaded_run_id
+        const status = await api.chatStatus()
+        if (!saved && status.use_agenda !== undefined) {
+          this.useAgenda = status.use_agenda
         }
         if (this.messages.length === 0 && status.message_count === 0) {
           this.messages.push({
@@ -53,11 +46,11 @@ export function chatbotPage() {
     _welcomeMessage() {
       return 'Ciao! Sono **Opportunity Bot**, il tuo assistente per Opportunity Radar.\n\n' +
         'Posso aiutarti a:\n' +
-        '- Comprendere il funzionamento dell\'applicazione\n' +
-        '- Analizzare i risultati delle esecuzioni\n' +
-        '- Rispondere a domande su bandi, eventi e opportunit\u00e0 specifiche\n' +
-        '- Spiegare le configurazioni e impostazioni\n\n' +
-        'Per iniziare, seleziona un\'esecuzione dal menu in alto per caricare i risultati nel contesto, oppure chiedimi qualsiasi cosa!'
+        '- Analizzare le opportunit\u00e0 presenti nella tua Agenda\n' +
+        '- Confrontare bandi, eventi e finanziamenti\n' +
+        '- Rispondere a domande su singole opportunit\u00e0\n' +
+        '- Comprendere il funzionamento dell\'applicazione\n\n' +
+        'Attiva il toggle **Contesto Agenda** per caricare tutte le opportunit\u00e0 nella conversazione, oppure chiedimi qualsiasi cosa!'
     },
 
     async send() {
@@ -70,7 +63,7 @@ export function chatbotPage() {
       this.$nextTick(() => this._scrollToBottom())
 
       try {
-        const resp = await api.chatMessage(text, this.selectedRunId)
+        const resp = await api.chatMessage(text, { useAgenda: this.useAgenda })
         const msg = { role: 'assistant', content: resp.reply }
         if (resp.action === 'start_run') msg.action = 'start_run'
         this.messages.push(msg)
@@ -122,29 +115,29 @@ export function chatbotPage() {
       this.$nextTick(() => this._scrollToBottom())
     },
 
-    async selectRun(runId) {
-      const id = runId ? parseInt(runId) : null
-      if (id === this.selectedRunId) return
-      this.selectedRunId = id
-      this.showRunSelector = false
+    async toggleAgenda() {
+      this.useAgenda = !this.useAgenda
       this.messages = []
       this.loading = true
+      this._persist()
 
       try {
         await api.chatReset()
-        const run = this.runs.find(r => r.id === id)
-        if (id && run) {
+        if (this.useAgenda) {
           this.messages.push({
             role: 'system',
-            content: 'Esecuzione #' + id + ' del ' + formatDate(run.started_at) +
-              ' caricata nel contesto (' + run.total_relevant + ' risultati rilevanti)',
+            content: 'Contesto Agenda attivato \u2014 tutte le opportunit\u00e0 sono disponibili nella conversazione',
           })
           const resp = await api.chatMessage(
-            'L\'utente ha selezionato l\'esecuzione #' + id + '. Conferma brevemente che hai i risultati nel contesto e chiedi come puoi aiutarlo.',
-            id,
+            'L\'utente ha attivato il contesto Agenda. Conferma brevemente che hai accesso a tutte le opportunit\u00e0 dell\'agenda e chiedi come puoi aiutarlo.',
+            { useAgenda: true },
           )
           this.messages.push({ role: 'assistant', content: resp.reply })
         } else {
+          this.messages.push({
+            role: 'system',
+            content: 'Contesto Agenda disattivato',
+          })
           this.messages.push({ role: 'assistant', content: this._welcomeMessage() })
         }
       } catch (e) {
@@ -161,7 +154,7 @@ export function chatbotPage() {
         await api.chatReset()
       } catch (e) { /* ignore */ }
       this.messages = []
-      this.selectedRunId = null
+      this.useAgenda = true
       this.messages.push({ role: 'assistant', content: this._welcomeMessage() })
       localStorage.removeItem('or-chat')
     },
@@ -169,13 +162,6 @@ export function chatbotPage() {
     renderMarkdown(text) {
       if (!text) return ''
       return marked.parse(text)
-    },
-
-    selectedRunLabel() {
-      if (!this.selectedRunId) return 'Nessuna esecuzione'
-      const run = this.runs.find(r => r.id === this.selectedRunId)
-      if (!run) return 'Run #' + this.selectedRunId
-      return '#' + run.id + ' - ' + formatDate(run.started_at) + ' (' + run.total_relevant + ' rilevanti)'
     },
 
     toggleVoiceMode() {
@@ -198,8 +184,8 @@ export function chatbotPage() {
 
         const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:'
         const token = localStorage.getItem('or-token') || ''
-        const runParam = this.selectedRunId ? '&run_id=' + this.selectedRunId : ''
-        const wsUrl = wsProto + '//' + location.host + '/api/chat/voice?token=' + encodeURIComponent(token) + runParam
+        const agendaParam = this.useAgenda ? '&use_agenda=true' : ''
+        const wsUrl = wsProto + '//' + location.host + '/api/chat/voice?token=' + encodeURIComponent(token) + agendaParam
 
         this._ws = new WebSocket(wsUrl)
         this._ws.binaryType = 'arraybuffer'
@@ -318,7 +304,7 @@ export function chatbotPage() {
       try {
         localStorage.setItem('or-chat', JSON.stringify({
           messages: this.messages,
-          selectedRunId: this.selectedRunId,
+          useAgenda: this.useAgenda,
         }))
       } catch (e) { /* quota exceeded - ignore */ }
     },
@@ -328,6 +314,5 @@ export function chatbotPage() {
       if (el) el.scrollTop = el.scrollHeight
     },
 
-    formatDate,
   }
 }

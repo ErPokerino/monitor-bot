@@ -14,6 +14,7 @@ from google.genai import types
 from monitor_bot.config import Settings
 from monitor_bot.database import get_session
 from monitor_bot.genai_client import create_genai_client
+from monitor_bot.services import agenda as agenda_svc
 from monitor_bot.services import queries as query_svc
 from monitor_bot.services import runs as run_svc
 from monitor_bot.services import settings as settings_svc
@@ -25,6 +26,7 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 _history: list[dict[str, str]] = []
 _loaded_run_id: int | None = None
+_loaded_agenda: bool = False
 
 _APP_CONTEXT = (
     "Sei **Opportunity Bot**, l'assistente AI dell'applicazione **Opportunity Radar**.\n\n"
@@ -34,9 +36,11 @@ _APP_CONTEXT = (
     "portali bandi) e query di ricerca internet, li classifica tramite AI in base al profilo aziendale "
     "dell'utente e produce punteggi di rilevanza (1-10).\n\n"
     "Le sezioni principali dell'app sono:\n"
-    "- **Dashboard**: panoramica con statistiche e storico esecuzioni\n"
+    "- **Agenda**: pagina principale dove l'utente valuta le opportunita' (pollice su/giu'), gestisce "
+    "iscrizioni agli eventi e monitora le scadenze\n"
+    "- **Esecuzioni**: storico delle ricerche eseguite\n"
     "- **Configurazioni**: gestione link diretti (fonti), ricerche internet e impostazioni generali\n"
-    "- **Esegui**: avvio manuale della pipeline di raccolta e analisi\n"
+    "- **Ricerca**: avvio manuale della pipeline di raccolta e analisi\n"
     "- **Opportunity Bot**: questo chatbot (tu)\n\n"
     "L'app supporta anche esecuzioni programmate (batch job settimanale) con notifica email.\n"
 )
@@ -45,11 +49,11 @@ _INSTRUCTIONS = (
     "## Istruzioni\n"
     "- Rispondi SEMPRE in italiano\n"
     "- Aiuta l'utente a comprendere i risultati, le impostazioni e il funzionamento dell'app\n"
-    "- Quando i risultati di un'esecuzione sono caricati nel contesto, rispondi a domande "
-    "specifiche su singoli bandi, eventi o opportunita' facendo riferimento ai dati concreti\n"
+    "- Quando il contesto dell'Agenda e' caricato, rispondi a domande specifiche su singoli "
+    "bandi, eventi o opportunita' facendo riferimento ai dati concreti presenti nell'agenda\n"
+    "- Se l'utente chiede di un bando o evento specifico, fornisci titolo, score, categoria, "
+    "ragionamento AI, requisiti chiave, stato valutazione, iscrizione e link sorgente\n"
     "- Sii preciso e cita dati specifici quando rispondi\n"
-    "- Se l'utente chiede di un risultato specifico, fornisci titolo, score, categoria, "
-    "ragionamento AI, requisiti chiave e link sorgente\n"
     "- Usa un tono professionale ma amichevole\n"
     "- Formatta le risposte in modo chiaro usando elenchi puntati quando appropriato\n"
     "\n## Azione: avvio nuova ricerca\n"
@@ -67,6 +71,7 @@ _ACTION_MARKER = "[AVVIA_RICERCA]"
 class ChatRequest(BaseModel):
     message: str
     run_id: int | None = None
+    use_agenda: bool = False
 
 
 class ChatResponse(BaseModel):
@@ -174,7 +179,77 @@ def _format_run_results(run, results: list) -> str:
     return "\n".join(lines)
 
 
-async def _build_system_prompt(db: AsyncSession, run_id: int | None) -> str:
+async def _format_agenda(db: AsyncSession) -> str:
+    """Build a rich text summary of all active agenda items for the bot context."""
+    from monitor_bot.db_models import Evaluation
+
+    pending = await agenda_svc.list_agenda(db, tab="pending", limit=500)
+    interested = await agenda_svc.list_agenda(db, tab="interested", limit=500)
+    past = await agenda_svc.list_agenda(db, tab="past_events", limit=200)
+    stats = await agenda_svc.get_stats(db)
+
+    sections: list[str] = []
+    sections.append(
+        f"## Contesto Agenda\n"
+        f"Totale elementi da valutare: {stats['pending_count']} | "
+        f"In scadenza (30 gg): {stats['expiring_count']} | "
+        f"Non visti: {stats['unseen_count']}"
+    )
+
+    def _item_line(i: int, item) -> str:
+        deadline_str = item.deadline.strftime("%d/%m/%Y") if item.deadline else "N/D"
+        value_str = ""
+        if item.estimated_value:
+            value_str = f" | Valore: {item.estimated_value:,.0f} {item.currency}"
+        eval_str = ""
+        if item.evaluation == Evaluation.INTERESTED:
+            eval_str = " | Valutazione: INTERESSANTE"
+        enrolled_str = " | Iscritto: Si" if item.is_enrolled else ""
+        reqs = ""
+        if item.key_requirements:
+            try:
+                req_list = json.loads(item.key_requirements)
+                if req_list:
+                    reqs = " | Requisiti: " + "; ".join(req_list[:5])
+            except (json.JSONDecodeError, TypeError):
+                pass
+        feedback = ""
+        if item.feedback_recommend is not None:
+            feedback += f" | Consigliato: {'Si' if item.feedback_recommend else 'No'}"
+        if item.feedback_return is not None:
+            feedback += f" | Tornerebbe: {'Si' if item.feedback_return else 'No'}"
+        return (
+            f"\n**{i}. {item.title}**\n"
+            f"   Tipo: {item.opportunity_type} | Categoria: {item.category} | "
+            f"Score: {item.relevance_score}/10 | Scadenza: {deadline_str}{value_str}\n"
+            f"   Ente: {item.contracting_authority or 'N/D'} | Paese: {item.country or 'N/D'}"
+            f"{eval_str}{enrolled_str}{feedback}\n"
+            f"   Ragionamento AI: {item.ai_reasoning}{reqs}\n"
+            f"   Link: {item.source_url}"
+        )
+
+    if pending:
+        sections.append(f"\n### Opportunita' da valutare ({len(pending)})")
+        for i, item in enumerate(pending, 1):
+            sections.append(_item_line(i, item))
+
+    if interested:
+        sections.append(f"\n### Opportunita' di interesse ({len(interested)})")
+        for i, item in enumerate(interested, 1):
+            sections.append(_item_line(i, item))
+
+    if past:
+        sections.append(f"\n### Eventi passati con iscrizione ({len(past)})")
+        for i, item in enumerate(past, 1):
+            sections.append(_item_line(i, item))
+
+    if not pending and not interested and not past:
+        sections.append("\nL'agenda e' vuota: nessuna opportunita' presente.")
+
+    return "\n".join(sections)
+
+
+async def _build_system_prompt(db: AsyncSession, run_id: int | None = None, *, use_agenda: bool = False) -> str:
     all_settings = await settings_svc.get_all(db)
     sources = await source_svc.list_sources(db)
     queries = await query_svc.list_queries(db)
@@ -186,7 +261,10 @@ async def _build_system_prompt(db: AsyncSession, run_id: int | None) -> str:
     sections.append(_format_queries(queries))
     sections.append(_format_run_history(runs))
 
-    if run_id:
+    if use_agenda:
+        agenda_section = await _format_agenda(db)
+        sections.append(agenda_section)
+    elif run_id:
         run = await run_svc.get_run(db, run_id)
         if run and run.results:
             sections.append(_format_run_results(run, run.results))
@@ -202,13 +280,15 @@ async def send_message(
     req: ChatRequest,
     db: AsyncSession = Depends(get_session),
 ):
-    global _loaded_run_id, _history
+    global _loaded_run_id, _loaded_agenda, _history
 
-    if req.run_id != _loaded_run_id:
+    context_changed = req.use_agenda != _loaded_agenda or req.run_id != _loaded_run_id
+    if context_changed:
         _history = []
         _loaded_run_id = req.run_id
+        _loaded_agenda = req.use_agenda
 
-    system_prompt = await _build_system_prompt(db, _loaded_run_id)
+    system_prompt = await _build_system_prompt(db, _loaded_run_id, use_agenda=_loaded_agenda)
 
     _history.append({"role": "user", "content": req.message})
 
@@ -254,9 +334,10 @@ async def send_message(
 
 @router.delete("/history")
 async def reset_history():
-    global _history, _loaded_run_id
+    global _history, _loaded_run_id, _loaded_agenda
     _history = []
     _loaded_run_id = None
+    _loaded_agenda = False
     return {"status": "ok"}
 
 
@@ -265,4 +346,5 @@ async def chat_status():
     return {
         "message_count": len(_history),
         "loaded_run_id": _loaded_run_id,
+        "use_agenda": _loaded_agenda,
     }

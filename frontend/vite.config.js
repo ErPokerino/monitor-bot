@@ -9,6 +9,7 @@ export default defineConfig({
         login: resolve(__dirname, 'login.html'),
         configurazioni: resolve(__dirname, 'configurazioni.html'),
         esegui: resolve(__dirname, 'esegui.html'),
+        esecuzioni: resolve(__dirname, 'esecuzioni.html'),
         dettaglio: resolve(__dirname, 'dettaglio.html'),
         chatbot: resolve(__dirname, 'chatbot.html'),
       },

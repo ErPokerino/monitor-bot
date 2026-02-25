@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from monitor_bot.db_models import RunStatus, SearchResult, SearchRun, _now_rome
 from monitor_bot.models import ClassifiedOpportunity
+from monitor_bot.services import agenda as agenda_svc
 
 
 async def create_run(db: AsyncSession, config_snapshot: dict | None = None) -> SearchRun:
@@ -53,6 +54,7 @@ async def save_results(
 ) -> int:
     """Persist classified opportunities as SearchResult rows. Returns count."""
     count = 0
+    saved_results: list[SearchResult] = []
     for item in classified:
         opp = item.opportunity
         cls = item.classification
@@ -75,8 +77,12 @@ async def save_results(
             key_requirements=json.dumps(cls.key_requirements, ensure_ascii=False),
         )
         db.add(result)
+        saved_results.append(result)
         count += 1
     await db.commit()
+
+    await agenda_svc.upsert_from_results(db, run_id, saved_results)
+
     return count
 
 

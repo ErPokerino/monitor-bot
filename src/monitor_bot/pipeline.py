@@ -299,10 +299,13 @@ async def run_pipeline(
     *,
     progress: ProgressCallback | None = None,
     use_cache: bool = True,
+    excluded_urls: set[str] | None = None,
 ) -> PipelineResult:
     """Execute the full pipeline: collect -> deduplicate -> classify -> report.
 
     This is the main reusable entry point, called by both CLI and web app.
+    ``excluded_urls`` contains normalised source URLs of items previously
+    rejected by the user or already expired, so they are skipped.
     """
     if progress is None:
         progress = NullProgress()
@@ -333,13 +336,24 @@ async def run_pipeline(
             result.elapsed_seconds = time.monotonic() - start
             return result
 
-        # 2. Deduplicate
+        # 2. Deduplicate + exclude rejected/expired agenda items
         progress.on_stage_begin(2, TOTAL_STAGES, "deduplicazione")
         before = len(opportunities)
         opportunities = _deduplicate(opportunities)
+        dedup_removed = before - len(opportunities)
+        if excluded_urls:
+            before_excl = len(opportunities)
+            opportunities = [
+                o for o in opportunities
+                if o.source_url.strip().lower() not in excluded_urls
+            ]
+            agenda_removed = before_excl - len(opportunities)
+        else:
+            agenda_removed = 0
         progress.on_stage_end(
             2, TOTAL_STAGES,
-            f"{len(opportunities)} unici, {before - len(opportunities)} duplicati rimossi",
+            f"{len(opportunities)} unici, {dedup_removed} duplicati rimossi"
+            + (f", {agenda_removed} esclusi da agenda" if agenda_removed else ""),
         )
 
         # 3. Filter expired

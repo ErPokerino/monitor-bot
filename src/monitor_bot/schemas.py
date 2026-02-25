@@ -6,7 +6,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
-from monitor_bot.db_models import RunStatus, SourceCategory, SourceType
+from monitor_bot.db_models import Evaluation, RunStatus, SourceCategory, SourceType
 
 
 # ------------------------------------------------------------------
@@ -125,6 +125,62 @@ class DashboardOut(BaseModel):
     last_run: RunOut | None
     recent_runs: list[RunOut]
     is_running: bool
+
+
+# ------------------------------------------------------------------
+# Agenda
+# ------------------------------------------------------------------
+
+class AgendaItemOut(BaseModel):
+    id: int
+    source_url: str
+    opportunity_id: str
+    title: str
+    description: str
+    contracting_authority: str
+    deadline: date | None
+    estimated_value: float | None
+    currency: str
+    country: str
+    source: str
+    opportunity_type: str
+    relevance_score: int
+    category: str
+    ai_reasoning: str
+    key_requirements: str
+    evaluation: Evaluation | None
+    is_enrolled: bool
+    feedback_recommend: bool | None
+    feedback_return: bool | None
+    is_seen: bool
+    first_seen_at: datetime
+    evaluated_at: datetime | None
+
+    model_config = {"from_attributes": True}
+
+
+class AgendaEvaluateRequest(BaseModel):
+    evaluation: Evaluation
+
+
+class AgendaEnrollRequest(BaseModel):
+    is_enrolled: bool
+
+
+class AgendaFeedbackRequest(BaseModel):
+    recommend: bool
+    return_next_year: bool
+
+
+class AgendaMarkSeenRequest(BaseModel):
+    ids: list[int] | None = None
+    all: bool = False
+
+
+class AgendaStatsOut(BaseModel):
+    unseen_count: int
+    pending_count: int
+    expiring_count: int
 
 
 # ------------------------------------------------------------------

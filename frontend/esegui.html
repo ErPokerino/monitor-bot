@@ -34,12 +34,19 @@
                     <span x-text="link.label"></span>
                 </a>
             </template>
+            <!-- Notification bell -->
+            <div class="relative ml-3" x-data="notificationBell()">
+                <button @click="goToAgenda()" class="relative p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-navy-800 transition-colors">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                    <span x-show="count > 0" x-text="count > 99 ? '99+' : count" class="absolute -top-1 -right-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white" :class="{ 'animate-pulse': pulse }"></span>
+                </button>
+            </div>
         </div>
     </div>
 </nav>
 <!-- Mobile bottom nav -->
 <nav class="fixed bottom-0 inset-x-0 z-50 border-t border-gray-200 bg-white md:hidden" x-data="navbar()">
-    <div class="grid grid-cols-4 h-16">
+    <div class="grid grid-cols-5 h-16">
         <template x-for="link in links" :key="link.href">
             <a :href="link.href" class="flex flex-col items-center justify-center gap-1 text-xs font-medium transition-colors" :class="link.active ? 'text-accent-600' : 'text-gray-500'">
                 <span x-html="link.icon" class="flex-shrink-0 [&>svg]:h-5 [&>svg]:w-5"></span>

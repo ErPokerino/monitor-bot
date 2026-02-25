@@ -29,13 +29,14 @@ async def voice_session(
     ws: WebSocket,
     token: str = Query(...),
     run_id: int | None = Query(default=None),
+    use_agenda: bool = Query(default=False),
 ):
     if not validate_token(token):
         await ws.close(code=4001, reason="Invalid token")
         return
 
     await ws.accept()
-    logger.info("Voice session opened (run_id=%s)", run_id)
+    logger.info("Voice session opened (run_id=%s, use_agenda=%s)", run_id, use_agenda)
 
     settings = Settings()
     if settings.gcp_project_id:
@@ -52,7 +53,7 @@ async def voice_session(
         return
 
     async with async_session() as db:
-        system_prompt = await _build_system_prompt(db, run_id)
+        system_prompt = await _build_system_prompt(db, run_id, use_agenda=use_agenda)
 
     voice_instructions = (
         system_prompt

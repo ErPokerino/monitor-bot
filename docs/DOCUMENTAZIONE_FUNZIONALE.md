@@ -85,21 +85,42 @@ Il report HTML include:
 - Card per ogni opportunità con: titolo, data/scadenza, ente, valore, motivazione AI, link alla fonte
 - Tempo di esecuzione nel footer
 
-### 2.8 Autenticazione
+### 2.8 Agenda
+
+L'Agenda e' la pagina principale dell'applicazione e raccoglie tutte le opportunita' trovate dalle ricerche in una vista unificata e deduplicata. Funzionalita':
+
+- **Valutazione**: ogni opportunita' puo' essere valutata con pollice su (interessante) o pollice giu' (scartata). Gli elementi scartati vengono esclusi dalle ricerche future.
+- **Iscrizione eventi**: per le opportunita' di tipo Evento, l'utente puo' segnare l'iscrizione.
+- **Pannello scadenze**: mostra gli elementi in scadenza entro N giorni (configurabile: 7/14/30/60).
+- **Feedback eventi passati**: per gli eventi a cui l'utente si e' iscritto e la cui data e' passata, e' possibile dare un feedback ("Lo consiglieresti?" e "Torneresti il prossimo anno?").
+- **Notifiche**: una campanella nella navbar mostra il numero di nuovi elementi non ancora visualizzati, con badge rosso stile YouTube.
+- **Filtri e ricerca**: filtraggio per tipo (Bando/Evento/Concorso), categoria, stato iscrizione, ricerca testuale e ordinamento.
+- **Esclusione automatica**: gli elementi scartati e quelli con data di scadenza passata vengono automaticamente esclusi dalle ricerche future dello stesso utente.
+
+Tab disponibili:
+1. **Da valutare**: elementi non ancora valutati
+2. **Interessanti**: elementi valutati positivamente
+3. **Eventi passati**: eventi con iscrizione e data passata, per consultazione e feedback
+
+### 2.9 Pagina Esecuzioni
+
+La pagina Esecuzioni mostra lo storico completo delle ricerche eseguite con tabella interattiva: data, stato, raccolti, rilevanti, durata. Supporta selezione multipla e cancellazione batch. Da ogni riga si accede alla pagina di dettaglio della singola esecuzione.
+
+### 2.10 Autenticazione
 
 L'accesso all'applicazione richiede autenticazione tramite username e password. Dopo il login, viene generato un token di sessione che viene utilizzato per tutte le richieste API successive. In caso di token scaduto o non valido, l'utente viene reindirizzato alla pagina di login.
 
-### 2.9 Onboarding
+### 2.11 Onboarding
 
 Al primo accesso dopo il login, viene presentato un carousel di benvenuto con 4 slide:
 1. **Benvenuto**: introduzione a Opportunity Radar
-2. **Dashboard e Storico**: come consultare statistiche e risultati
+2. **Agenda**: come valutare le opportunita', gestire iscrizioni e monitorare scadenze
 3. **Settings e Configurazioni**: come configurare fonti, profilo e schedulazione
 4. **Bot e Voice Mode**: come utilizzare il chatbot AI e la conversazione vocale
 
 L'utente puo' navigare tra le slide, saltare l'onboarding o completarlo. La scelta viene memorizzata e l'onboarding non viene riproposto nelle visite successive.
 
-### 2.10 Chatbot AI (Opportunity Bot)
+### 2.12 Chatbot AI (Opportunity Bot)
 
 Il chatbot AI integrato permette di:
 - Comprendere il funzionamento dell'applicazione
@@ -109,7 +130,7 @@ Il chatbot AI integrato permette di:
 
 Il contesto della conversazione include automaticamente le configurazioni, lo storico esecuzioni e i risultati dell'esecuzione selezionata.
 
-### 2.11 Voice Mode
+### 2.13 Voice Mode
 
 La modalita' vocale utilizza Gemini Live native audio per conversazioni in tempo reale. L'audio viene processato nativamente dal modello AI (senza passaggi intermedi STT/TTS), risultando in conversazioni naturali e fluenti in italiano.
 

@@ -59,9 +59,13 @@ def _add_missing_columns(connection) -> None:
         else:
             rows = connection.execute(text(
                 "SELECT column_name FROM information_schema.columns "
-                f"WHERE table_name = '{table.name}'"
+                f"WHERE table_schema = 'public' AND table_name = '{table.name}'"
             ))
             existing = {row[0] for row in rows}
+
+        if not existing:
+            log.info("Table %s not found in schema – skipping migration", table.name)
+            continue
 
         for col in table.columns:
             if col.name not in existing:
@@ -69,7 +73,12 @@ def _add_missing_columns(connection) -> None:
                 default = ""
                 if col.default is not None and col.default.is_scalar:
                     val = col.default.arg
-                    default = f" DEFAULT {val!r}" if isinstance(val, str) else f" DEFAULT {val}"
+                    if isinstance(val, bool):
+                        default = f" DEFAULT {'true' if val else 'false'}"
+                    elif isinstance(val, str):
+                        default = f" DEFAULT {val!r}"
+                    else:
+                        default = f" DEFAULT {val}"
                 elif col.nullable:
                     default = " DEFAULT NULL"
                 stmt = f"ALTER TABLE {table.name} ADD COLUMN {col.name} {col_type}{default}"

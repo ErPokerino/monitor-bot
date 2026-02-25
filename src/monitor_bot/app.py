@@ -83,15 +83,18 @@ async def lifespan(app: FastAPI):
 
 
 async def _backfill_agenda(db) -> None:
-    """Populate agenda from existing search results if the agenda is empty."""
-    from monitor_bot.services import agenda as agenda_svc
-    from monitor_bot.services import settings as settings_svc
+    """Populate agenda from existing search results that are not yet present."""
+    try:
+        from monitor_bot.services import agenda as agenda_svc
+        from monitor_bot.services import settings as settings_svc
 
-    all_settings = await settings_svc.get_all(db)
-    threshold = int(all_settings.get("relevance_threshold", "6"))
-    count = await agenda_svc.backfill_from_existing_results(db, threshold=threshold)
-    if count:
-        logger.info("Backfilled agenda with %d items from existing search results", count)
+        all_settings = await settings_svc.get_all(db)
+        threshold = int(all_settings.get("relevance_threshold", "6"))
+        logger.info("Running agenda backfill (threshold=%d) …", threshold)
+        count = await agenda_svc.backfill_from_existing_results(db, threshold=threshold)
+        logger.info("Agenda backfill finished: %d new item(s)", count)
+    except Exception:
+        logger.exception("Agenda backfill failed – continuing startup")
 
 
 async def _cleanup_orphaned_runs(db) -> None:
@@ -184,10 +187,15 @@ def _mount_frontend(app: FastAPI) -> None:
             return await call_next(request)
         file = STATIC_DIR / path.lstrip("/")
         if file.is_file():
-            return FileResponse(file)
+            resp = FileResponse(file)
+            if file.suffix == ".html":
+                resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            return resp
         if path in html_files or path == "/":
             target = "index.html" if path == "/" else path.lstrip("/")
-            return FileResponse(STATIC_DIR / target)
+            resp = FileResponse(STATIC_DIR / target)
+            resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            return resp
         return await call_next(request)
 
     app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="static-assets")

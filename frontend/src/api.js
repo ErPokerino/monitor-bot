@@ -38,8 +38,6 @@ async function request(method, path, body = null) {
 }
 
 export const api = {
-  getDashboard:  ()            => request('GET', '/dashboard'),
-
   getAgenda:     (params = {}) => {
     const q = new URLSearchParams()
     for (const [k, v] of Object.entries(params)) { if (v != null && v !== '') q.set(k, v) }

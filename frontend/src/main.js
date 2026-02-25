@@ -5,7 +5,6 @@ import { agendaPage } from './components/agenda.js'
 import { configPage } from './components/config.js'
 import { pipelineRunner } from './components/pipeline.js'
 import { esecuzioniPage } from './components/esecuzioni.js'
-import { historyPage } from './components/history.js'
 import { detailPage } from './components/detail.js'
 import { chatbotPage } from './components/chatbot.js'
 import { toastContainer } from './components/toast.js'
@@ -14,7 +13,6 @@ Alpine.data('agendaPage', agendaPage)
 Alpine.data('configPage', configPage)
 Alpine.data('pipelineRunner', pipelineRunner)
 Alpine.data('esecuzioniPage', esecuzioniPage)
-Alpine.data('historyPage', historyPage)
 Alpine.data('detailPage', detailPage)
 Alpine.data('chatbotPage', chatbotPage)
 Alpine.data('toastContainer', toastContainer)

@@ -72,6 +72,12 @@ function costColor(cost) {
   return m[cost] || 'bg-gray-100 text-gray-600'
 }
 
+function isUrlLike(s) {
+  if (!s) return false
+  if (/^https?:\/\//.test(s)) return true
+  return !s.includes(' ') && s.includes('.')
+}
+
 export function agendaPage() {
   return {
     loading: true,
@@ -185,5 +191,6 @@ export function agendaPage() {
     formatDeadline,
     formatColor,
     costColor,
+    isUrlLike,
   }
 }

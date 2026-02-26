@@ -54,7 +54,7 @@
                             {% elif r.relevance_score >= 6 %}bg-accent-100 text-accent-800
                             {% elif r.relevance_score >= 4 %}bg-amber-100 text-amber-800
                             {% else %}bg-gray-100 text-gray-600{% endif %}">{{ r.relevance_score }}</span>
-                        <h3 class="text-base font-semibold text-navy-800 truncate">{{ r.title }}</h3>
+                        <h3 class="text-base font-semibold text-navy-800 truncate">{% if r.source_url %}<a href="{{ r.source_url }}" target="_blank" rel="noopener" class="hover:text-accent-600 transition-colors">{{ r.title }}</a>{% else %}{{ r.title }}{% endif %}</h3>
                     </div>
                     <p class="text-sm text-gray-600 line-clamp-2 mb-3">{{ r.description }}</p>
 
@@ -79,7 +79,7 @@
                         {% if r.sector %}
                         <span class="rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-700">{{ r.sector }}</span>
                         {% endif %}
-                        {% if r.contracting_authority %}
+                        {% if r.contracting_authority and '://' not in r.contracting_authority and (' ' in r.contracting_authority or '.' not in r.contracting_authority) %}
                         <span>{{ r.contracting_authority }}</span>
                         {% endif %}
                         {% if r.city or r.country %}

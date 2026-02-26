@@ -576,7 +576,9 @@
 
     <div class="meta-grid">
       <span><span class="key">Tipo:</span> <span class="type-badge type-{{ opp.opportunity_type.value }}">{{ opp.opportunity_type.value }}</span></span>
-      <span><span class="key">Ente:</span> {{ opp.contracting_authority or "N/A" }}</span>
+      {% if opp.contracting_authority and '://' not in opp.contracting_authority and (' ' in opp.contracting_authority or '.' not in opp.contracting_authority) %}
+      <span><span class="key">Ente:</span> {{ opp.contracting_authority }}</span>
+      {% endif %}
       <span><span class="key">Luogo:</span> {{ [cls.city, opp.country]|select|join(', ') or "N/A" }}</span>
       {% if cls.event_format %}
       <span><span class="key">Formato:</span> {{ cls.event_format.value if cls.event_format.value is defined else cls.event_format }}</span>

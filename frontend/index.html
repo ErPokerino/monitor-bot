@@ -241,7 +241,7 @@
                     <h3 class="text-base font-semibold text-navy-800 mb-1">
                         <a :href="item.source_url" target="_blank" rel="noopener" class="hover:text-accent-600 transition-colors" x-text="item.title"></a>
                     </h3>
-                    <template x-if="item.contracting_authority">
+                    <template x-if="item.contracting_authority && !isUrlLike(item.contracting_authority)">
                         <p class="text-xs text-gray-500 mb-2" x-text="item.contracting_authority"></p>
                     </template>
 

@@ -142,7 +142,9 @@
                             <div class="min-w-0 flex-1">
                                 <div class="flex items-center gap-2 mb-2">
                                     <span :class="scoreBadge(r.relevance_score)" class="inline-flex items-center justify-center h-7 w-7 rounded-lg text-xs font-bold" x-text="r.relevance_score"></span>
-                                    <h3 class="text-base font-semibold text-navy-800 truncate" x-text="r.title"></h3>
+                                    <h3 class="text-base font-semibold text-navy-800 truncate">
+                                        <a :href="r.source_url" target="_blank" rel="noopener" class="hover:text-accent-600 transition-colors" x-text="r.title"></a>
+                                    </h3>
                                 </div>
                                 <p class="text-sm text-gray-600 line-clamp-2 mb-3" x-text="r.description"></p>
                                 <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
@@ -151,7 +153,7 @@
                                     <template x-if="r.event_format"><span class="rounded bg-orange-50 px-1.5 py-0.5 font-medium text-orange-700" x-text="r.event_format"></span></template>
                                     <template x-if="r.event_cost"><span class="rounded bg-green-50 px-1.5 py-0.5 font-medium text-green-700" x-text="r.event_cost"></span></template>
                                     <template x-if="r.sector"><span class="rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-700" x-text="r.sector"></span></template>
-                                    <template x-if="r.contracting_authority"><span x-text="r.contracting_authority"></span></template>
+                                    <template x-if="r.contracting_authority && !/^https?:\/\//.test(r.contracting_authority) && (r.contracting_authority.includes(' ') || !r.contracting_authority.includes('.'))"><span x-text="r.contracting_authority"></span></template>
                                     <template x-if="r.city || r.country"><span x-text="[r.city, r.country].filter(Boolean).join(', ')"></span></template>
                                     <template x-if="r.deadline"><span class="font-medium" :class="isDeadlinePast(r.deadline)?'text-red-500':'text-navy-800'" x-text="'Scadenza: ' + formatDeadline(r.deadline)"></span></template>
                                     <template x-if="r.estimated_value"><span class="font-medium text-navy-800" x-text="formatValue(r.estimated_value, r.currency)"></span></template>

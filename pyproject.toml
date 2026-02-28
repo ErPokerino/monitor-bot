@@ -20,6 +20,7 @@ dependencies = [
     "aiosqlite>=0.21",
     "python-multipart>=0.0.18",
     "tzdata>=2025.3",
+    "argon2-cffi>=25.1.0",
 ]
 
 [project.scripts]
@@ -29,6 +30,8 @@ monitor-job = "monitor_bot.job:main"
 
 [dependency-groups]
 dev = [
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
     "ruff>=0.9",
 ]
 

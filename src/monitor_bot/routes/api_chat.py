@@ -5,14 +5,18 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from dataclasses import dataclass
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from google.genai import types
 
+from monitor_bot.auth import AuthPrincipal, get_current_principal
 from monitor_bot.config import Settings
 from monitor_bot.database import get_session
+from monitor_bot.db_models import UserRole
 from monitor_bot.genai_client import create_genai_client
 from monitor_bot.services import agenda as agenda_svc
 from monitor_bot.services import queries as query_svc
@@ -24,9 +28,15 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
-_history: list[dict[str, str]] = []
-_loaded_run_id: int | None = None
-_loaded_agenda: bool = False
+
+@dataclass
+class _ChatState:
+    history: list[dict[str, str]]
+    loaded_run_id: int | None = None
+    loaded_agenda: bool = False
+
+
+_state_by_user: dict[int, _ChatState] = {}
 
 _APP_CONTEXT = (
     "Sei **Opportunity Bot**, l'assistente AI dell'applicazione **Opportunity Radar**.\n\n"
@@ -80,6 +90,30 @@ class ChatResponse(BaseModel):
     action: str | None = None
 
 
+def _get_state(user_id: int) -> _ChatState:
+    if user_id not in _state_by_user:
+        _state_by_user[user_id] = _ChatState(history=[])
+    return _state_by_user[user_id]
+
+
+def _format_user_context(principal: AuthPrincipal) -> str:
+    lines = [
+        "## Contesto utente corrente",
+        f"- **Nome utente**: {principal.display_name}",
+        f"- **Username**: {principal.username}",
+        f"- **Ruolo**: {principal.role.value}",
+    ]
+    if principal.role == UserRole.ADMIN:
+        lines.extend([
+            "",
+            "## Capacita' amministrative",
+            "- Puoi gestire utenti (creazione/disattivazione) e monitorare lo stato generale.",
+            "- Puoi aggiornare impostazioni di sistema (scheduler, notifiche email, timeout pipeline).",
+            "- Le azioni amministrative reali richiedono sempre conferma via API con autorizzazione server-side.",
+        ])
+    return "\n".join(lines)
+
+
 def _format_settings(all_settings: dict[str, str]) -> str:
     lines = ["## Profilo azienda e impostazioni correnti"]
     if all_settings.get("company_name"):
@@ -97,11 +131,15 @@ def _format_settings(all_settings: dict[str, str]) -> str:
     if all_settings.get("company_description"):
         lines.append(f"- **Descrizione**: {all_settings['company_description'][:500]}")
     lines.append(f"- **Soglia rilevanza**: {all_settings.get('relevance_threshold', '6')}")
+    scheduler_enabled = str(all_settings.get("scheduler_enabled", "1")).lower() not in {"0", "false", "off", "no", ""}
     sday = all_settings.get("scheduler_day", "1")
     shour = all_settings.get("scheduler_hour", "2")
     day_names = {"0": "Domenica", "1": "Lunedi", "2": "Martedi", "3": "Mercoledi",
                  "4": "Giovedi", "5": "Venerdi", "6": "Sabato"}
-    lines.append(f"- **Esecuzione programmata**: {day_names.get(sday, sday)} ore {shour}:00")
+    scheduler_label = f"{day_names.get(sday, sday)} ore {shour}:00"
+    if not scheduler_enabled:
+        scheduler_label += " (disattivata)"
+    lines.append(f"- **Esecuzione programmata**: {scheduler_label}")
     return "\n".join(lines)
 
 
@@ -179,14 +217,14 @@ def _format_run_results(run, results: list) -> str:
     return "\n".join(lines)
 
 
-async def _format_agenda(db: AsyncSession) -> str:
+async def _format_agenda(db: AsyncSession, owner_user_id: int) -> str:
     """Build a rich text summary of all active agenda items for the bot context."""
     from monitor_bot.db_models import Evaluation
 
-    pending = await agenda_svc.list_agenda(db, tab="pending", limit=500)
-    interested = await agenda_svc.list_agenda(db, tab="interested", limit=500)
-    past = await agenda_svc.list_agenda(db, tab="past_events", limit=200)
-    stats = await agenda_svc.get_stats(db)
+    pending = await agenda_svc.list_agenda(db, owner_user_id, tab="pending", limit=500)
+    interested = await agenda_svc.list_agenda(db, owner_user_id, tab="interested", limit=500)
+    past = await agenda_svc.list_agenda(db, owner_user_id, tab="past_events", limit=200)
+    stats = await agenda_svc.get_stats(db, owner_user_id)
 
     sections: list[str] = []
     sections.append(
@@ -257,23 +295,40 @@ async def _format_agenda(db: AsyncSession) -> str:
     return "\n".join(sections)
 
 
-async def _build_system_prompt(db: AsyncSession, run_id: int | None = None, *, use_agenda: bool = False) -> str:
-    all_settings = await settings_svc.get_all(db)
-    sources = await source_svc.list_sources(db)
-    queries = await query_svc.list_queries(db)
-    runs = await run_svc.list_runs(db, limit=15)
+async def _build_system_prompt(
+    db: AsyncSession,
+    principal: AuthPrincipal,
+    run_id: int | None = None,
+    *,
+    use_agenda: bool = False,
+) -> str:
+    all_settings = await settings_svc.get_all(db, user_id=principal.id, include_system=True)
+    sources = await source_svc.list_sources(db, owner_user_id=principal.id)
+    queries = await query_svc.list_queries(db, owner_user_id=principal.id)
+    runs = await run_svc.list_runs(
+        db,
+        owner_user_id=None if principal.role == UserRole.ADMIN else principal.id,
+        include_all=principal.role == UserRole.ADMIN,
+        limit=15,
+    )
 
     sections = [_APP_CONTEXT]
+    sections.append(_format_user_context(principal))
     sections.append(_format_settings(all_settings))
     sections.append(_format_sources(sources))
     sections.append(_format_queries(queries))
     sections.append(_format_run_history(runs))
 
     if use_agenda:
-        agenda_section = await _format_agenda(db)
+        agenda_section = await _format_agenda(db, principal.id)
         sections.append(agenda_section)
     elif run_id:
-        run = await run_svc.get_run(db, run_id)
+        run = await run_svc.get_run(
+            db,
+            run_id,
+            owner_user_id=None if principal.role == UserRole.ADMIN else principal.id,
+            include_all=principal.role == UserRole.ADMIN,
+        )
         if run and run.results:
             sections.append(_format_run_results(run, run.results))
         elif run:
@@ -287,21 +342,27 @@ async def _build_system_prompt(db: AsyncSession, run_id: int | None = None, *, u
 async def send_message(
     req: ChatRequest,
     db: AsyncSession = Depends(get_session),
+    principal: AuthPrincipal = Depends(get_current_principal),
 ):
-    global _loaded_run_id, _loaded_agenda, _history
+    state = _get_state(principal.id)
 
-    context_changed = req.use_agenda != _loaded_agenda or req.run_id != _loaded_run_id
+    context_changed = req.use_agenda != state.loaded_agenda or req.run_id != state.loaded_run_id
     if context_changed:
-        _history = []
-        _loaded_run_id = req.run_id
-        _loaded_agenda = req.use_agenda
+        state.history = []
+        state.loaded_run_id = req.run_id
+        state.loaded_agenda = req.use_agenda
 
-    system_prompt = await _build_system_prompt(db, _loaded_run_id, use_agenda=_loaded_agenda)
+    system_prompt = await _build_system_prompt(
+        db,
+        principal,
+        state.loaded_run_id,
+        use_agenda=state.loaded_agenda,
+    )
 
-    _history.append({"role": "user", "content": req.message})
+    state.history.append({"role": "user", "content": req.message})
 
     contents = []
-    for m in _history:
+    for m in state.history:
         contents.append(
             types.Content(role=m["role"], parts=[types.Part.from_text(text=m["content"])])
         )
@@ -324,7 +385,7 @@ async def send_message(
         reply = response.text or "Mi dispiace, non sono riuscito a generare una risposta."
     except Exception:
         logger.exception("Chat generation failed")
-        _history.pop()
+        state.history.pop()
         raise HTTPException(status_code=502, detail="Errore nella generazione della risposta AI")
 
     action = None
@@ -332,27 +393,25 @@ async def send_message(
         reply = reply.replace(_ACTION_MARKER, "").rstrip()
         action = "start_run"
 
-    _history.append({"role": "model", "content": reply})
+    state.history.append({"role": "model", "content": reply})
 
-    if len(_history) > 40:
-        _history[:] = _history[-30:]
+    if len(state.history) > 40:
+        state.history[:] = state.history[-30:]
 
-    return ChatResponse(reply=reply, run_id=_loaded_run_id, action=action)
+    return ChatResponse(reply=reply, run_id=state.loaded_run_id, action=action)
 
 
 @router.delete("/history")
-async def reset_history():
-    global _history, _loaded_run_id, _loaded_agenda
-    _history = []
-    _loaded_run_id = None
-    _loaded_agenda = False
+async def reset_history(principal: AuthPrincipal = Depends(get_current_principal)):
+    _state_by_user[principal.id] = _ChatState(history=[])
     return {"status": "ok"}
 
 
 @router.get("/status")
-async def chat_status():
+async def chat_status(principal: AuthPrincipal = Depends(get_current_principal)):
+    state = _get_state(principal.id)
     return {
-        "message_count": len(_history),
-        "loaded_run_id": _loaded_run_id,
-        "use_agenda": _loaded_agenda,
+        "message_count": len(state.history),
+        "loaded_run_id": state.loaded_run_id,
+        "use_agenda": state.loaded_agenda,
     }

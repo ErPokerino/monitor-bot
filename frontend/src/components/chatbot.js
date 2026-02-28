@@ -20,7 +20,7 @@ export function chatbotPage() {
 
     async init() {
       try {
-        const saved = localStorage.getItem('or-chat')
+        const saved = localStorage.getItem(this._storageKey())
         if (saved) {
           const parsed = JSON.parse(saved)
           this.messages = parsed.messages || []
@@ -44,7 +44,13 @@ export function chatbotPage() {
     },
 
     _welcomeMessage() {
-      return 'Ciao! Sono **Opportunity Bot**, il tuo assistente per Opportunity Radar.\n\n' +
+      let name = ''
+      try {
+        const u = JSON.parse(localStorage.getItem('or-user') || 'null')
+        name = u?.display_name || u?.username || ''
+      } catch { /* noop */ }
+      const greeting = name ? `Ciao **${name}**! ` : 'Ciao! '
+      return greeting + 'Sono **Opportunity Bot**, il tuo assistente per Opportunity Radar.\n\n' +
         'Posso aiutarti a:\n' +
         '- Analizzare le opportunit\u00e0 presenti nella tua Agenda\n' +
         '- Confrontare bandi, eventi e finanziamenti\n' +
@@ -156,7 +162,7 @@ export function chatbotPage() {
       this.messages = []
       this.useAgenda = true
       this.messages.push({ role: 'assistant', content: this._welcomeMessage() })
-      localStorage.removeItem('or-chat')
+      localStorage.removeItem(this._storageKey())
     },
 
     renderMarkdown(text) {
@@ -184,14 +190,16 @@ export function chatbotPage() {
 
         const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:'
         const token = localStorage.getItem('or-token') || ''
-        const agendaParam = this.useAgenda ? '&use_agenda=true' : ''
-        const wsUrl = wsProto + '//' + location.host + '/api/chat/voice?token=' + encodeURIComponent(token) + agendaParam
+        const q = new URLSearchParams()
+        if (this.useAgenda) q.set('use_agenda', 'true')
+        const wsUrl = wsProto + '//' + location.host + '/api/chat/voice' + (q.toString() ? '?' + q.toString() : '')
 
         this._ws = new WebSocket(wsUrl)
         this._ws.binaryType = 'arraybuffer'
 
         this._ws.onopen = () => {
           this.voiceMode = true
+          this._ws.send(JSON.stringify({ type: 'auth', token }))
         }
 
         this._ws.onmessage = (event) => {
@@ -302,11 +310,21 @@ export function chatbotPage() {
 
     _persist() {
       try {
-        localStorage.setItem('or-chat', JSON.stringify({
+        localStorage.setItem(this._storageKey(), JSON.stringify({
           messages: this.messages,
           useAgenda: this.useAgenda,
         }))
       } catch (e) { /* quota exceeded - ignore */ }
+    },
+
+    _storageKey() {
+      try {
+        const user = JSON.parse(localStorage.getItem('or-user') || 'null')
+        const username = user?.username || 'default'
+        return `or-chat-${username}`
+      } catch {
+        return 'or-chat-default'
+      }
     },
 
     _scrollToBottom() {

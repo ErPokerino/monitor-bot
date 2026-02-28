@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from monitor_bot.auth import AuthPrincipal, get_current_principal
 from monitor_bot.database import get_session
 from monitor_bot.db_models import SourceCategory
 from monitor_bot.schemas import QueryCreate, QueryOut, QueryUpdate
@@ -18,27 +19,35 @@ async def list_queries(
     category: SourceCategory | None = None,
     active_only: bool = False,
     db: AsyncSession = Depends(get_session),
+    principal: AuthPrincipal = Depends(get_current_principal),
 ):
-    return await svc.list_queries(db, category=category, active_only=active_only)
+    return await svc.list_queries(
+        db,
+        owner_user_id=principal.id,
+        category=category,
+        active_only=active_only,
+    )
 
 
 @router.post("", response_model=QueryOut, status_code=201)
 async def create_query(
     data: QueryCreate,
     db: AsyncSession = Depends(get_session),
+    principal: AuthPrincipal = Depends(get_current_principal),
 ):
-    if await svc.query_text_exists(db, data.query_text):
+    if await svc.query_text_exists(db, data.query_text, owner_user_id=principal.id):
         raise HTTPException(400, "Query already exists")
-    return await svc.create_query(db, data)
+    return await svc.create_query(db, principal.id, data)
 
 
 @router.post("/toggle-all")
 async def toggle_all_queries(
     body: dict,
     db: AsyncSession = Depends(get_session),
+    principal: AuthPrincipal = Depends(get_current_principal),
 ):
     active = bool(body.get("active", True))
-    count = await svc.set_all_active(db, active=active)
+    count = await svc.set_all_active(db, owner_user_id=principal.id, active=active)
     return {"updated": count, "active": active}
 
 
@@ -46,8 +55,9 @@ async def toggle_all_queries(
 async def get_query(
     query_id: int,
     db: AsyncSession = Depends(get_session),
+    principal: AuthPrincipal = Depends(get_current_principal),
 ):
-    query = await svc.get_query(db, query_id)
+    query = await svc.get_query(db, query_id, owner_user_id=principal.id)
     if not query:
         raise HTTPException(404, "Query not found")
     return query
@@ -58,8 +68,9 @@ async def update_query(
     query_id: int,
     data: QueryUpdate,
     db: AsyncSession = Depends(get_session),
+    principal: AuthPrincipal = Depends(get_current_principal),
 ):
-    query = await svc.update_query(db, query_id, data)
+    query = await svc.update_query(db, query_id, data, owner_user_id=principal.id)
     if not query:
         raise HTTPException(404, "Query not found")
     return query
@@ -69,8 +80,9 @@ async def update_query(
 async def toggle_query(
     query_id: int,
     db: AsyncSession = Depends(get_session),
+    principal: AuthPrincipal = Depends(get_current_principal),
 ):
-    query = await svc.toggle_query(db, query_id)
+    query = await svc.toggle_query(db, query_id, owner_user_id=principal.id)
     if not query:
         raise HTTPException(404, "Query not found")
     return query
@@ -80,6 +92,7 @@ async def toggle_query(
 async def delete_query(
     query_id: int,
     db: AsyncSession = Depends(get_session),
+    principal: AuthPrincipal = Depends(get_current_principal),
 ):
-    if not await svc.delete_query(db, query_id):
+    if not await svc.delete_query(db, query_id, owner_user_id=principal.id):
         raise HTTPException(404, "Query not found")

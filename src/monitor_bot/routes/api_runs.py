@@ -12,9 +12,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from monitor_bot.auth import AuthPrincipal, get_current_principal
 from monitor_bot.config import Settings
 from monitor_bot.database import async_session, get_session
-from monitor_bot.db_models import RunStatus, SearchRun
+from monitor_bot.db_models import RunStatus, SearchRun, UserRole
 from monitor_bot.pipeline import ProgressCallback, run_pipeline
 from monitor_bot.schemas import BatchDeleteRequest, BatchDeleteResponse, RunDetailOut, RunOut
 from monitor_bot.services import agenda as agenda_svc
@@ -29,6 +30,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
 _current_run_id: int | None = None
+_current_run_owner_id: int | None = None
 _current_task: asyncio.Task[None] | None = None
 
 
@@ -107,22 +109,32 @@ class DBProgress(ProgressCallback):
 async def list_runs(
     limit: int = 50,
     db: AsyncSession = Depends(get_session),
+    principal: AuthPrincipal = Depends(get_current_principal),
 ):
-    return await run_svc.list_runs(db, limit=limit)
+    if principal.role == UserRole.ADMIN:
+        return await run_svc.list_runs(db, include_all=True, limit=limit)
+    return await run_svc.list_runs(db, owner_user_id=principal.id, limit=limit)
 
 
 @router.get("/status")
-async def run_status():
+async def run_status(principal: AuthPrincipal = Depends(get_current_principal)):
     """Check whether a pipeline is currently running."""
-    return {"running": _current_run_id is not None, "run_id": _current_run_id}
+    if principal.role == UserRole.ADMIN:
+        return {"running": _current_run_id is not None, "run_id": _current_run_id}
+    is_running = _current_run_id is not None and _current_run_owner_id == principal.id
+    return {"running": is_running, "run_id": _current_run_id if is_running else None}
 
 
 @router.get("/{run_id}", response_model=RunDetailOut)
 async def get_run(
     run_id: int,
     db: AsyncSession = Depends(get_session),
+    principal: AuthPrincipal = Depends(get_current_principal),
 ):
-    run = await run_svc.get_run(db, run_id)
+    if principal.role == UserRole.ADMIN:
+        run = await run_svc.get_run(db, run_id, include_all=True)
+    else:
+        run = await run_svc.get_run(db, run_id, owner_user_id=principal.id)
     if not run:
         raise HTTPException(404, "Run not found")
     return run
@@ -132,11 +144,14 @@ async def get_run(
 async def get_run_progress(
     run_id: int,
     db: AsyncSession = Depends(get_session),
+    principal: AuthPrincipal = Depends(get_current_principal),
 ):
     """Poll endpoint for real-time pipeline progress."""
     run = await db.get(SearchRun, run_id)
     if not run:
         raise HTTPException(404, "Run not found")
+    if principal.role != UserRole.ADMIN and run.owner_user_id != principal.id:
+        raise HTTPException(403, "Forbidden")
     progress = json.loads(run.progress_json) if run.progress_json else {}
     return {
         "run_id": run_id,
@@ -146,29 +161,35 @@ async def get_run_progress(
 
 
 @router.post("/start", response_model=RunOut)
-async def start_run(db: AsyncSession = Depends(get_session)):
+async def start_run(
+    db: AsyncSession = Depends(get_session),
+    principal: AuthPrincipal = Depends(get_current_principal),
+):
     """Launch a new pipeline run in the background."""
-    global _current_run_id, _current_task
+    global _current_run_id, _current_run_owner_id, _current_task
 
     if _current_run_id is not None:
         raise HTTPException(409, "A pipeline is already running")
 
     settings = Settings()
-    excluded_urls = await agenda_svc.get_excluded_urls(db)
-    run = await run_svc.create_run(db, config_snapshot={"scope": settings.scope_summary()})
+    excluded_urls = await agenda_svc.get_excluded_urls(db, principal.id)
+    run = await run_svc.create_run(db, principal.id, config_snapshot={"scope": settings.scope_summary()})
     _current_run_id = run.id
-    _current_task = asyncio.create_task(_execute_pipeline(run.id, settings, excluded_urls))
+    _current_run_owner_id = principal.id
+    _current_task = asyncio.create_task(_execute_pipeline(run.id, principal.id, settings, excluded_urls))
     logger.info("Background task created for run %d (excluding %d URLs)", run.id, len(excluded_urls))
     return run
 
 
 @router.post("/stop")
-async def stop_run():
+async def stop_run(principal: AuthPrincipal = Depends(get_current_principal)):
     """Cancel the currently running pipeline."""
-    global _current_run_id, _current_task
+    global _current_run_id, _current_run_owner_id, _current_task
 
     if _current_run_id is None or _current_task is None:
         raise HTTPException(404, "No pipeline is currently running")
+    if principal.role != UserRole.ADMIN and _current_run_owner_id != principal.id:
+        raise HTTPException(403, "Forbidden")
 
     run_id = _current_run_id
     _current_task.cancel()
@@ -180,8 +201,13 @@ async def stop_run():
 async def delete_run(
     run_id: int,
     db: AsyncSession = Depends(get_session),
+    principal: AuthPrincipal = Depends(get_current_principal),
 ):
-    if not await run_svc.delete_run(db, run_id):
+    if principal.role == UserRole.ADMIN:
+        deleted = await run_svc.delete_run(db, run_id, include_all=True)
+    else:
+        deleted = await run_svc.delete_run(db, run_id, owner_user_id=principal.id)
+    if not deleted:
         raise HTTPException(404, "Run not found")
 
 
@@ -189,8 +215,12 @@ async def delete_run(
 async def delete_runs_batch(
     body: BatchDeleteRequest,
     db: AsyncSession = Depends(get_session),
+    principal: AuthPrincipal = Depends(get_current_principal),
 ):
-    deleted = await run_svc.delete_runs(db, body.ids)
+    if principal.role == UserRole.ADMIN:
+        deleted = await run_svc.delete_runs(db, body.ids, include_all=True)
+    else:
+        deleted = await run_svc.delete_runs(db, body.ids, owner_user_id=principal.id)
     return BatchDeleteResponse(deleted=deleted)
 
 
@@ -198,9 +228,14 @@ async def delete_runs_batch(
 # Pipeline execution
 # ------------------------------------------------------------------
 
-async def _execute_pipeline(run_id: int, settings: Settings, excluded_urls: set[str] | None = None) -> None:
+async def _execute_pipeline(
+    run_id: int,
+    owner_user_id: int,
+    settings: Settings,
+    excluded_urls: set[str] | None = None,
+) -> None:
     """Background task that runs the full pipeline and persists results."""
-    global _current_run_id, _current_task
+    global _current_run_id, _current_run_owner_id, _current_task
     logger.info("Pipeline task started for run %d", run_id)
 
     await asyncio.sleep(0.1)
@@ -209,9 +244,17 @@ async def _execute_pipeline(run_id: int, settings: Settings, excluded_urls: set[
 
     try:
         async with async_session() as db:
-            active_sources = await source_svc.list_sources(db, active_only=True)
-            active_queries = await query_svc.list_queries(db, active_only=True)
-            all_settings = await settings_svc.get_all(db)
+            active_sources = await source_svc.list_sources(
+                db,
+                owner_user_id=owner_user_id,
+                active_only=True,
+            )
+            active_queries = await query_svc.list_queries(
+                db,
+                owner_user_id=owner_user_id,
+                active_only=True,
+            )
+            all_settings = await settings_svc.get_all(db, user_id=owner_user_id, include_system=True)
 
         settings.apply_db_overrides(active_sources, active_queries)
 
@@ -251,7 +294,7 @@ async def _execute_pipeline(run_id: int, settings: Settings, excluded_urls: set[
 
         async with async_session() as db:
             if result.classified:
-                await run_svc.save_results(db, run_id, result.classified)
+                await run_svc.save_results(db, run_id, owner_user_id, result.classified)
             await run_svc.complete_run(
                 db, run_id,
                 status=RunStatus.COMPLETED,
@@ -302,4 +345,5 @@ async def _execute_pipeline(run_id: int, settings: Settings, excluded_urls: set[
 
     finally:
         _current_run_id = None
+        _current_run_owner_id = None
         _current_task = None

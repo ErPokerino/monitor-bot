@@ -5,7 +5,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from monitor_bot.auth import AuthPrincipal, get_current_principal
 from monitor_bot.database import get_session
+from monitor_bot.db_models import UserRole
 from monitor_bot.schemas import DashboardOut
 from monitor_bot.services import queries as query_svc
 from monitor_bot.services import runs as run_svc
@@ -15,14 +17,34 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 
 @router.get("", response_model=DashboardOut)
-async def dashboard_stats(db: AsyncSession = Depends(get_session)):
-    active_sources = await source_svc.count_sources(db, active_only=True)
-    total_sources = await source_svc.count_sources(db)
-    active_queries = await query_svc.count_queries(db, active_only=True)
-    total_queries = await query_svc.count_queries(db)
-    last_run = await run_svc.get_latest_run(db)
-    recent_runs = await run_svc.list_runs(db, limit=10)
-    running = await run_svc.get_running(db)
+async def dashboard_stats(
+    db: AsyncSession = Depends(get_session),
+    principal: AuthPrincipal = Depends(get_current_principal),
+):
+    if principal.role == UserRole.ADMIN:
+        active_sources = await source_svc.count_sources(db, include_all=True, active_only=True)
+        total_sources = await source_svc.count_sources(db, include_all=True)
+        active_queries = await query_svc.count_queries(db, include_all=True, active_only=True)
+        total_queries = await query_svc.count_queries(db, include_all=True)
+        last_run = await run_svc.get_latest_run(db, include_all=True)
+        recent_runs = await run_svc.list_runs(db, include_all=True, limit=10)
+        running = await run_svc.get_running(db, include_all=True)
+    else:
+        active_sources = await source_svc.count_sources(
+            db,
+            owner_user_id=principal.id,
+            active_only=True,
+        )
+        total_sources = await source_svc.count_sources(db, owner_user_id=principal.id)
+        active_queries = await query_svc.count_queries(
+            db,
+            owner_user_id=principal.id,
+            active_only=True,
+        )
+        total_queries = await query_svc.count_queries(db, owner_user_id=principal.id)
+        last_run = await run_svc.get_latest_run(db, owner_user_id=principal.id)
+        recent_runs = await run_svc.list_runs(db, owner_user_id=principal.id, limit=10)
+        running = await run_svc.get_running(db, owner_user_id=principal.id)
 
     return DashboardOut(
         active_sources=active_sources,

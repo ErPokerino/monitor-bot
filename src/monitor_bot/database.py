@@ -86,6 +86,44 @@ def _add_missing_columns(connection) -> None:
                 connection.execute(text(stmt))
 
 
+def _run_multi_user_schema_migrations(connection) -> None:
+    """Apply schema changes that require explicit DDL statements."""
+    import logging
+
+    log = logging.getLogger(__name__)
+    dialect_name = connection.dialect.name
+
+    if dialect_name == "postgresql":
+        # Drop legacy single-tenant unique constraints so uniqueness can be per-user.
+        connection.execute(text(
+            "ALTER TABLE monitored_sources DROP CONSTRAINT IF EXISTS monitored_sources_url_key",
+        ))
+        connection.execute(text(
+            "ALTER TABLE search_queries DROP CONSTRAINT IF EXISTS search_queries_query_text_key",
+        ))
+        connection.execute(text(
+            "ALTER TABLE agenda_items DROP CONSTRAINT IF EXISTS agenda_items_source_url_key",
+        ))
+    else:
+        log.info(
+            "SQLite detected: legacy single-column UNIQUE constraints remain in-place. "
+            "Per-user uniqueness is also enforced via composite indexes.",
+        )
+
+    connection.execute(text(
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_monitored_sources_owner_url "
+        "ON monitored_sources(owner_user_id, url)",
+    ))
+    connection.execute(text(
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_search_queries_owner_text "
+        "ON search_queries(owner_user_id, query_text)",
+    ))
+    connection.execute(text(
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_agenda_items_owner_source_url "
+        "ON agenda_items(owner_user_id, source_url)",
+    ))
+
+
 async def init_db() -> None:
     """Create all tables if they don't exist, then add any missing columns."""
     if _is_sqlite:
@@ -94,6 +132,7 @@ async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await conn.run_sync(_add_missing_columns)
+        await conn.run_sync(_run_multi_user_schema_migrations)
 
 
 async def get_session() -> AsyncSession:  # noqa: D401 – FastAPI dependency

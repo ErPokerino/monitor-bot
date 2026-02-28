@@ -22,6 +22,7 @@ async function request(method, path, body = null) {
   const resp = await fetch(`/api${path}`, opts)
   if (resp.status === 401 && !path.startsWith('/auth/')) {
     localStorage.removeItem('or-token')
+    localStorage.removeItem('or-user')
     window.location.href = '/login.html'
     throw new ApiError(401, 'Not authenticated')
   }
@@ -46,6 +47,15 @@ export const api = {
   getAgendaStats:()            => request('GET', '/agenda/stats'),
   getAgendaExpiring:(days=30)  => request('GET', `/agenda/expiring?days=${days}`),
   getAgendaPastEvents:()       => request('GET', '/agenda/past-events'),
+  getSharedAgenda:(params = {}) => {
+    const q = new URLSearchParams()
+    for (const [k, v] of Object.entries(params)) { if (v != null && v !== '') q.set(k, v) }
+    return request('GET', `/agenda/shared?${q}`)
+  },
+  getAgendaNotifications:(limit = 10) => request('GET', `/agenda/notifications?limit=${limit}`),
+  getSharedStats:()            => request('GET', '/agenda/shared/stats'),
+  shareAgendaItem:(id, recipient_username, note = null) => request('POST', `/agenda/${id}/share`, { recipient_username, note }),
+  markSharedSeen:(ids = null, all = false) => request('POST', '/agenda/shared/mark-seen', { ids, all }),
   evaluateItem:  (id, evaluation) => request('PATCH', `/agenda/${id}/evaluate`, { evaluation }),
   enrollItem:    (id, is_enrolled) => request('PATCH', `/agenda/${id}/enroll`, { is_enrolled }),
   feedbackItem:  (id, recommend, return_next_year) => request('PATCH', `/agenda/${id}/feedback`, { recommend, return_next_year }),
@@ -82,7 +92,22 @@ export const api = {
   chatStatus:    ()            => request('GET', '/chat/status'),
 
   login:         (username, password) => request('POST', '/auth/login', { username, password }),
+  logout:        ()            => request('POST', '/auth/logout'),
   authMe:        ()            => request('GET', '/auth/me'),
+  searchUsers:   (q = '', limit = 20) => {
+    const qs = new URLSearchParams()
+    if (q) qs.set('q', q)
+    if (limit) qs.set('limit', String(limit))
+    const suffix = qs.toString()
+    return request('GET', suffix ? `/auth/users?${suffix}` : '/auth/users')
+  },
+
+  getAdminUsers: ()            => request('GET', '/admin/users'),
+  createAdminUser:(d)          => request('POST', '/admin/users', d),
+  deleteAdminUser:(id)         => request('DELETE', `/admin/users/${id}`),
+  activateAdminUser:(id)       => request('POST', `/admin/users/${id}/activate`),
+  hardDeleteAdminUser:(id)     => request('DELETE', `/admin/users/${id}/hard`),
+  getAdminOverview:()          => request('GET', '/admin/overview'),
 }
 
 export { ApiError }

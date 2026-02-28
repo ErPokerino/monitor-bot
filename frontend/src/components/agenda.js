@@ -92,29 +92,76 @@ export function agendaPage() {
     expiringDays: 30,
     animatingId: null,
     animatingDir: null,
+    shareModalOpen: false,
+    shareItemTarget: null,
+    shareSearch: '',
+    shareCandidates: [],
+    shareSelectedUser: null,
+    shareNote: '',
+    shareLoadingUsers: false,
+    _shareSearchTimer: null,
+    _shareReqId: 0,
 
     // Touch tracking
     _touchStartX: 0,
     _touchItemId: null,
 
     async init() {
+      const initialTab = new URLSearchParams(window.location.search).get('tab')
+      if (['pending', 'interested', 'shared', 'past_events'].includes(initialTab)) {
+        this.tab = initialTab
+      }
       await this.loadAll()
     },
 
     async loadAll() {
       this.loading = true
       try {
-        const [items, expiring] = await Promise.all([
-          api.getAgenda({
+        const expiringPromise = api.getAgendaExpiring(this.expiringDays)
+        let items = []
+        if (this.tab === 'shared') {
+          const shared = await api.getSharedAgenda()
+          items = shared.map(s => ({
+            ...s.item,
+            _shared: {
+              share_id: s.share_id,
+              shared_by_username: s.shared_by_username,
+              shared_by_display_name: s.shared_by_display_name,
+              note: s.note,
+              shared_at: s.shared_at,
+              is_seen: s.is_seen,
+            },
+          }))
+          if (this.filterType) items = items.filter(i => i.opportunity_type === this.filterType)
+          if (this.filterCategory) items = items.filter(i => i.category === this.filterCategory)
+          if (this.search) {
+            const q = this.search.toLowerCase()
+            items = items.filter(i => (i.title || '').toLowerCase().includes(q) || (i.description || '').toLowerCase().includes(q))
+          }
+          if (this.sort === 'relevance_score') {
+            items.sort((a, b) => (b.relevance_score || 0) - (a.relevance_score || 0))
+          } else if (this.sort === 'deadline') {
+            items.sort((a, b) => {
+              if (!a.deadline && !b.deadline) return 0
+              if (!a.deadline) return 1
+              if (!b.deadline) return -1
+              return new Date(a.deadline) - new Date(b.deadline)
+            })
+          } else {
+            items.sort((a, b) => new Date(b.first_seen_at) - new Date(a.first_seen_at))
+          }
+          await api.markSharedSeen(null, true)
+        } else {
+          items = await api.getAgenda({
             tab: this.tab,
             type: this.filterType || undefined,
             category: this.filterCategory || undefined,
             enrolled: this.filterEnrolled,
             search: this.search || undefined,
             sort: this.sort,
-          }),
-          api.getAgendaExpiring(this.expiringDays),
-        ])
+          })
+        }
+        const expiring = await expiringPromise
         this.items = items
         this.expiring = expiring
       } catch {
@@ -166,6 +213,79 @@ export function agendaPage() {
         window.toast.success('Feedback salvato')
       } catch {
         window.toast.error('Errore nel salvataggio del feedback')
+      }
+    },
+
+    async openShareModal(item) {
+      this.shareItemTarget = item
+      this.shareSearch = ''
+      this.shareCandidates = []
+      this.shareSelectedUser = null
+      this.shareNote = ''
+      this.shareModalOpen = true
+      await this.searchShareUsers('')
+    },
+
+    closeShareModal() {
+      this.shareModalOpen = false
+      this.shareItemTarget = null
+      this.shareSearch = ''
+      this.shareCandidates = []
+      this.shareSelectedUser = null
+      this.shareNote = ''
+      if (this._shareSearchTimer) {
+        clearTimeout(this._shareSearchTimer)
+        this._shareSearchTimer = null
+      }
+    },
+
+    onShareSearchInput() {
+      if (this._shareSearchTimer) clearTimeout(this._shareSearchTimer)
+      this._shareSearchTimer = setTimeout(() => {
+        this.searchShareUsers(this.shareSearch)
+      }, 180)
+    },
+
+    async searchShareUsers(query) {
+      const reqId = ++this._shareReqId
+      this.shareLoadingUsers = true
+      try {
+        const users = await api.searchUsers(query?.trim() || '', 30)
+        if (reqId !== this._shareReqId) return
+        this.shareCandidates = users
+        if (
+          this.shareSelectedUser
+          && !users.some((u) => u.id === this.shareSelectedUser.id)
+        ) {
+          this.shareSelectedUser = null
+        }
+      } catch (e) {
+        if (reqId === this._shareReqId) {
+          this.shareCandidates = []
+          window.toast.error(e.message || 'Errore nel caricamento utenti')
+        }
+      } finally {
+        if (reqId === this._shareReqId) this.shareLoadingUsers = false
+      }
+    },
+
+    selectShareUser(user) {
+      this.shareSelectedUser = user
+    },
+
+    async confirmShareItem() {
+      if (!this.shareItemTarget) return
+      if (!this.shareSelectedUser) {
+        window.toast.error('Seleziona un utente con cui condividere')
+        return
+      }
+      const note = this.shareNote.trim() || null
+      try {
+        await api.shareAgendaItem(this.shareItemTarget.id, this.shareSelectedUser.username, note)
+        window.toast.success(`Elemento condiviso con ${this.shareSelectedUser.display_name || this.shareSelectedUser.username}`)
+        this.closeShareModal()
+      } catch (e) {
+        window.toast.error(e.message || 'Errore nella condivisione')
       }
     },
 

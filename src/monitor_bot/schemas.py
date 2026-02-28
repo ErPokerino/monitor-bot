@@ -6,7 +6,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
-from monitor_bot.db_models import Evaluation, RunStatus, SourceCategory, SourceType
+from monitor_bot.db_models import Evaluation, RunStatus, SourceCategory, SourceType, UserRole
 
 
 # ------------------------------------------------------------------
@@ -189,6 +189,32 @@ class AgendaStatsOut(BaseModel):
     unseen_count: int
     pending_count: int
     expiring_count: int
+    shared_unseen_count: int = 0
+
+
+class AgendaShareRequest(BaseModel):
+    recipient_username: str = Field(min_length=1, max_length=120)
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class AgendaShareMarkSeenRequest(BaseModel):
+    ids: list[int] | None = None
+    all: bool = False
+
+
+class SharedAgendaItemOut(BaseModel):
+    share_id: int
+    shared_by_username: str
+    shared_by_display_name: str
+    note: str | None
+    shared_at: datetime
+    is_seen: bool
+    item: AgendaItemOut
+
+
+class AgendaNotificationsOut(BaseModel):
+    agenda_unseen: list[AgendaItemOut] = Field(default_factory=list)
+    shared_unseen: list[SharedAgendaItemOut] = Field(default_factory=list)
 
 
 # ------------------------------------------------------------------
@@ -201,3 +227,43 @@ class BatchDeleteRequest(BaseModel):
 
 class BatchDeleteResponse(BaseModel):
     deleted: int
+
+
+# ------------------------------------------------------------------
+# Admin
+# ------------------------------------------------------------------
+
+class AdminUserCreateRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=120)
+    name: str | None = Field(default=None, max_length=255)
+    password: str = Field(min_length=6, max_length=255)
+    role: UserRole = UserRole.USER
+    must_reset_password: bool = False
+
+
+class AdminUserOut(BaseModel):
+    id: int
+    username: str
+    display_name: str
+    role: UserRole
+    is_active: bool
+    must_reset_password: bool
+    created_at: datetime
+    last_login_at: datetime | None
+
+    model_config = {"from_attributes": True}
+
+
+class AdminOverviewOut(BaseModel):
+    total_users: int
+    active_users: int
+    active_sessions: int
+    running_runs: int
+
+
+class UserDirectoryItemOut(BaseModel):
+    id: int
+    username: str
+    display_name: str
+
+    model_config = {"from_attributes": True}

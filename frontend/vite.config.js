@@ -12,6 +12,7 @@ export default defineConfig({
         esecuzioni: resolve(__dirname, 'esecuzioni.html'),
         dettaglio: resolve(__dirname, 'dettaglio.html'),
         chatbot: resolve(__dirname, 'chatbot.html'),
+        admin: resolve(__dirname, 'admin.html'),
       },
     },
   },

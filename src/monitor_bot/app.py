@@ -11,14 +11,15 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import update
+from sqlalchemy import select, update
 
 from monitor_bot.config import Settings
 from monitor_bot.database import async_session, init_db
-from monitor_bot.db_models import RunStatus, SearchRun, _now_rome
+from monitor_bot.auth import principal_from_user, validate_token
+from monitor_bot.db_models import RunStatus, SearchRun, User, UserRole, _now_rome
+from monitor_bot.routes.api_admin import router as admin_router
 from monitor_bot.routes.api_agenda import router as agenda_router
 from monitor_bot.routes.api_auth import router as auth_router
-from monitor_bot.routes.api_auth import validate_token
 from monitor_bot.routes.api_chat import router as chat_router
 from monitor_bot.routes.api_voice import router as voice_router
 from monitor_bot.routes.api_dashboard import router as dashboard_router
@@ -88,11 +89,28 @@ async def _backfill_agenda(db) -> None:
         from monitor_bot.services import agenda as agenda_svc
         from monitor_bot.services import settings as settings_svc
 
-        all_settings = await settings_svc.get_all(db)
-        threshold = int(all_settings.get("relevance_threshold", "6"))
-        logger.info("Running agenda backfill (threshold=%d) …", threshold)
-        count = await agenda_svc.backfill_from_existing_results(db, threshold=threshold)
-        logger.info("Agenda backfill finished: %d new item(s)", count)
+        users = list(
+            (await db.execute(select(User).where(User.is_active.is_(True)))).scalars().all(),
+        )
+        if not users:
+            return
+
+        total = 0
+        for user in users:
+            all_settings = await settings_svc.get_all(db, user_id=user.id, include_system=False)
+            threshold = int(all_settings.get("relevance_threshold", "6"))
+            logger.info(
+                "Running agenda backfill for user=%s (threshold=%d) …",
+                user.username,
+                threshold,
+            )
+            count = await agenda_svc.backfill_from_existing_results(
+                db,
+                user.id,
+                threshold=threshold,
+            )
+            total += count
+        logger.info("Agenda backfill finished: %d new item(s)", total)
     except Exception:
         logger.exception("Agenda backfill failed – continuing startup")
 
@@ -154,13 +172,28 @@ def create_app() -> FastAPI:
         if not auth_header.startswith("Bearer "):
             return JSONResponse({"detail": "Not authenticated"}, status_code=401)
         token = auth_header.removeprefix("Bearer ").strip()
-        if validate_token(token):
+        async with async_session() as db:
+            principal = await validate_token(db, token)
+        if principal:
+            request.state.auth_principal = principal
             return await call_next(request)
         if path == "/api/runs/start" and _verify_gcp_oidc(token):
+            async with async_session() as db:
+                admin_user = (
+                    await db.execute(
+                        select(User)
+                        .where(User.role == UserRole.ADMIN, User.is_active.is_(True))
+                        .order_by(User.id.asc())
+                        .limit(1),
+                    )
+                ).scalar_one_or_none()
+                if admin_user is not None:
+                    request.state.auth_principal = principal_from_user(admin_user)
             return await call_next(request)
         return JSONResponse({"detail": "Invalid or expired token"}, status_code=401)
 
     app.include_router(auth_router)
+    app.include_router(admin_router)
     app.include_router(agenda_router)
     app.include_router(dashboard_router)
     app.include_router(sources_router)

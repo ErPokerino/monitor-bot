@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import sys
 
 from monitor_bot.config import Settings
@@ -19,6 +20,7 @@ from monitor_bot.services import queries as query_svc
 from monitor_bot.services import runs as run_svc
 from monitor_bot.services import settings as settings_svc
 from monitor_bot.services import sources as source_svc
+from monitor_bot.services import users as user_svc
 from monitor_bot.services.email import _render_report_html, send_run_notification
 
 logging.basicConfig(
@@ -33,7 +35,17 @@ async def _run() -> None:
     await init_db()
 
     async with async_session() as db:
-        run = await run_svc.create_run(db, config_snapshot={"trigger": "cloud_run_job"})
+        admin_user = await user_svc.ensure_bootstrap_admin(
+            db,
+            username=os.environ.get("BOOTSTRAP_ADMIN_USERNAME", "admin"),
+            password=os.environ.get("BOOTSTRAP_ADMIN_PASSWORD", "123"),
+            display_name=os.environ.get("BOOTSTRAP_ADMIN_NAME", "Administrator"),
+        )
+        run = await run_svc.create_run(
+            db,
+            admin_user.id,
+            config_snapshot={"trigger": "cloud_run_job"},
+        )
         run_id = run.id
     logger.info("Job started – run_id=%d", run_id)
 
@@ -43,9 +55,21 @@ async def _run() -> None:
         settings = Settings()
 
         async with async_session() as db:
-            active_sources = await source_svc.list_sources(db, active_only=True)
-            active_queries = await query_svc.list_queries(db, active_only=True)
-            all_settings = await settings_svc.get_all(db)
+            active_sources = await source_svc.list_sources(
+                db,
+                owner_user_id=admin_user.id,
+                active_only=True,
+            )
+            active_queries = await query_svc.list_queries(
+                db,
+                owner_user_id=admin_user.id,
+                active_only=True,
+            )
+            all_settings = await settings_svc.get_all(
+                db,
+                user_id=admin_user.id,
+                include_system=True,
+            )
 
         settings.apply_db_overrides(active_sources, active_queries)
 
@@ -82,7 +106,7 @@ async def _run() -> None:
 
         async with async_session() as db:
             if result.classified:
-                await run_svc.save_results(db, run_id, result.classified)
+                await run_svc.save_results(db, run_id, admin_user.id, result.classified)
             await run_svc.complete_run(
                 db, run_id,
                 status=RunStatus.COMPLETED,
@@ -101,11 +125,10 @@ async def _run() -> None:
         email_raw = all_settings.get("notification_emails", "")
         email_list = [e.strip() for e in email_raw.split(",") if e.strip()]
         if email_list:
-            import os
             app_url = os.environ.get("APP_URL", "")
             report_html = None
             async with async_session() as db:
-                run_obj = await run_svc.get_run(db, run_id)
+                run_obj = await run_svc.get_run(db, run_id, owner_user_id=admin_user.id)
                 if run_obj and run_obj.results:
                     report_html = _render_report_html(run_id, run_obj.results)
             await send_run_notification(

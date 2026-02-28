@@ -49,7 +49,7 @@ Monitor Bot è un'applicazione Python asincrona che orchestra una pipeline di ra
 | Database | PostgreSQL + SQLAlchemy (async) + asyncpg |
 | Frontend | Alpine.js + TailwindCSS + Vite |
 | Voice AI | Gemini Live API (`gemini-live-2.5-flash-native-audio`) |
-| Autenticazione | Token-based (secrets.token_hex) + OIDC Google (Cloud Scheduler) |
+| Autenticazione | Sessioni DB-backed + Argon2 + RBAC (`admin | user`) + OIDC Google (Cloud Scheduler) |
 | Timezone | Europe/Rome (zoneinfo) per tutti i timestamp |
 | Deploy | Docker multi-stage + Cloud Run (GCP) + Cloud Build CI/CD |
 
@@ -60,6 +60,13 @@ Monitor Bot è un'applicazione Python asincrona che orchestra una pipeline di ra
 ```
 src/monitor_bot/
 ├── __init__.py
+├── app.py               # FastAPI app factory + middleware auth
+├── auth.py              # Password hashing, session token, principal/RBAC
+├── database.py          # SQLAlchemy async engine + migrazioni leggere runtime
+├── db_models.py         # ORM models (multi-user)
+├── schemas.py           # Pydantic schemas API
+├── seed.py              # Bootstrap admin e backfill dati legacy
+├── job.py               # Entry point Cloud Run Job
 ├── main.py              # CLI, arg parsing, orchestrazione pipeline
 ├── config.py            # Caricamento config.toml + .env
 ├── models.py            # Pydantic: Opportunity, Classification, ecc.
@@ -69,10 +76,10 @@ src/monitor_bot/
 ├── persistence.py       # PipelineCache – checkpoint su disco
 ├── progress.py          # ProgressTracker – barra progresso in italiano con icone
 ├── genai_client.py      # Factory client Google GenAI (Vertex AI / API key)
-├── app.py               # FastAPI app factory + middleware auth
 ├── routes/
-│   ├── api_agenda.py    # Agenda CRUD e valutazioni
-│   ├── api_auth.py      # Login e validazione token
+│   ├── api_agenda.py    # Agenda CRUD, share, notifiche
+│   ├── api_auth.py      # Login/logout/me + directory utenti per share picker
+│   ├── api_admin.py     # Gestione utenti admin (create/activate/deactivate/delete)
 │   ├── api_chat.py      # Chatbot AI testuale
 │   ├── api_voice.py     # Voice mode WebSocket (Gemini Live)
 │   ├── api_dashboard.py # Dashboard stats
@@ -80,6 +87,15 @@ src/monitor_bot/
 │   ├── api_queries.py   # CRUD ricerche internet
 │   ├── api_runs.py      # Gestione esecuzioni pipeline
 │   └── api_settings.py  # Impostazioni applicazione
+├── services/
+│   ├── agenda.py        # Isolamento dati per owner + share + notifiche
+│   ├── users.py         # Lifecycle utenti + ricerca directory
+│   ├── settings.py      # Settings user/system + sync scheduler GCP (pause/resume)
+│   ├── runs.py          # Run service e persistenza risultati
+│   ├── sources.py       # CRUD fonti con owner scope
+│   ├── queries.py       # CRUD query con owner scope
+│   ├── audit.py         # Audit log azioni sensibili
+│   └── email.py         # Notifiche email pipeline
 └── collectors/
     ├── base.py          # BaseCollector (abstract)
     ├── ted.py           # TEDCollector – API TED
@@ -123,25 +139,57 @@ Classification  # relevance_score, category, reason, key_requirements, extracted
 ClassifiedOpportunity  # opportunity + classification
 ```
 
-### 4.3b db_models.py – AgendaItem
+### 4.3b db_models.py – schema multi-user
 
-Tabella `agenda_items` per la gestione cross-run delle opportunita' con valutazione utente:
+Il modello dati e' multi-tenant logico: ogni record applicativo e' associato a un proprietario (`owner_user_id`) e le operazioni backend applicano sempre owner scoping.
+
+Tabelle identity e sicurezza:
 
 ```python
-AgendaItem:
-  id, source_url (unique, chiave dedup),
-  opportunity_id, title, description, contracting_authority,
-  deadline, estimated_value, currency, country, source,
-  opportunity_type, relevance_score, category, ai_reasoning, key_requirements,
-  event_format (nullable), event_cost (nullable), city (nullable), sector (nullable),
-  evaluation (Enum: INTERESTED | REJECTED, nullable),
-  is_enrolled (Boolean), feedback_recommend (Boolean), feedback_return (Boolean),
-  is_seen (Boolean), first_seen_at, evaluated_at, first_run_id (FK)
+User:
+  id, username (unique), display_name, password_hash (Argon2),
+  role (admin|user), is_active, must_reset_password,
+  failed_login_attempts, locked_until, last_login_at, created_at, updated_at
+
+AuthSession:
+  id, user_id (FK), token_hash (sha256, unique), created_at, expires_at,
+  revoked_at, last_seen_at
+
+AuditLog:
+  id, actor_user_id (FK nullable), action, target_type, target_id, payload_json, created_at
+
+UserSetting:
+  id, user_id (FK), key, value, UNIQUE(user_id, key)
 ```
 
-I campi `event_format`, `event_cost`, `city` e `sector` sono popolati dalla classificazione AI e contengono rispettivamente: tipologia di partecipazione (In presenza / Streaming / On demand), modello di costo (Gratuito / A pagamento / Su invito), citta' dell'evento e settore di mercato verticale.
+Tabelle dominio con ownership:
 
-La tabella viene popolata automaticamente dopo ogni esecuzione pipeline (upsert per `source_url`). Gli elementi con `evaluation=REJECTED` o `deadline < today` vengono esclusi dalle ricerche future.
+```python
+MonitoredSource.owner_user_id
+SearchQuery.owner_user_id
+SearchRun.owner_user_id
+SearchResult.owner_user_id
+AgendaItem.owner_user_id
+```
+
+Vincoli di unicita' per owner (evita collisioni cross-user):
+
+```python
+UNIQUE(owner_user_id, monitored_sources.url)
+UNIQUE(owner_user_id, search_queries.query_text)
+UNIQUE(owner_user_id, agenda_items.source_url)
+```
+
+Condivisione agenda:
+
+```python
+AgendaShare:
+  id, agenda_item_id (FK), sender_user_id (FK), recipient_user_id (FK),
+  note, is_seen, created_at,
+  UNIQUE(agenda_item_id, sender_user_id, recipient_user_id)
+```
+
+La tabella `agenda_items` mantiene i metadati di opportunita' (deadline, score, categoria, campi evento, valutazione, iscrizione, feedback, seen state) e viene popolata automaticamente post-run. Gli elementi `REJECTED` o scaduti sono esclusi dai run successivi per lo stesso utente.
 
 ### 4.4 collectors/
 
@@ -218,51 +266,73 @@ La tabella viene popolata automaticamente dopo ogni esecuzione pipeline (upsert 
 
 ### 4.9 Web Application (routes/)
 
-**api_auth.py**: Autenticazione token-based
-- `POST /api/auth/login`: validazione credenziali, generazione token
-- `GET /api/auth/me`: verifica sessione corrente
-- Token in-memory con scadenza
-- Il middleware auth accetta anche token OIDC Google su `/api/runs/start` (validati via `google.oauth2.id_token`) per consentire il trigger da Cloud Scheduler
+**api_auth.py**: autenticazione e directory utenti
+- `POST /api/auth/login`: verifica password Argon2, lockout anti brute-force, issue sessione DB
+- `POST /api/auth/logout`: revoca sessione corrente
+- `GET /api/auth/me`: principal corrente (`username`, `display_name`, `role`)
+- `GET /api/auth/users?q=&limit=`: directory utenti attivi (esclude caller), usata da share picker
 
-**api_chat.py**: Chatbot AI testuale
-- `POST /api/chat/message`: invio messaggio con contesto esecuzione
-- System prompt dinamico con dati app (settings, fonti, query, storico run, risultati)
-- Supporto azione `[AVVIA_RICERCA]` per trigger pipeline da chat
+**api_admin.py**: operazioni admin-only
+- `GET /api/admin/users`: lista utenti (attivi + disattivati)
+- `POST /api/admin/users`: creazione utente con ruolo
+- `DELETE /api/admin/users/{id}`: disattivazione (revoca tutte le sessioni)
+- `POST /api/admin/users/{id}/activate`: riattivazione utente
+- `DELETE /api/admin/users/{id}/hard`: eliminazione definitiva con cleanup dati correlati
+- `GET /api/admin/overview`: KPI utenti/sessioni/run
 
-**api_voice.py**: Voice mode (Gemini Live)
-- `WS /api/chat/voice?token=...&run_id=...`: WebSocket bidirezionale
-- Proxy tra browser e Gemini Live API
-- Audio: PCM 16-bit 16kHz (input) / 24kHz (output)
-- Autenticazione via query parameter (WebSocket non supporta header)
-- 3 task asincroni: relay client->Gemini, relay Gemini->client, gestione lifecycle
-- Voice name: "Aoede", lingua: italiano
+**api_agenda.py**: agenda, condivisione e notifiche
+- `GET /api/agenda`: lista owner-scoped con filtri (`pending`, `interested`, `past_events`)
+- `GET /api/agenda/shared`: elementi condivisi con l'utente corrente
+- `POST /api/agenda/{id}/share`: condivisione verso altro utente attivo
+- `GET /api/agenda/notifications`: payload aggregato notifiche (`agenda_unseen`, `shared_unseen`)
+- `GET /api/agenda/stats`: badge counters (`unseen_count`, `shared_unseen_count`, ...)
+- `POST /api/agenda/mark-seen` e `POST /api/agenda/shared/mark-seen`: mark read
+- `PATCH /api/agenda/{id}/evaluate|enroll|feedback`: workflow valutazione e post-evento
 
-**api_agenda.py**: Gestione Agenda con valutazione opportunita', iscrizione eventi e feedback.
-- `GET /api/agenda`: lista elementi attivi con filtri (tab, type, category, sort, search, paginazione)
-- `GET /api/agenda/stats`: contatori per badge notifica (unseen_count, pending_count, expiring_count)
-- `GET /api/agenda/expiring?days=N`: elementi in scadenza entro N giorni
-- `GET /api/agenda/past-events`: eventi passati con iscrizione per feedback
-- `PATCH /api/agenda/{id}/evaluate`: valutazione (interested/rejected)
-- `PATCH /api/agenda/{id}/enroll`: toggle iscrizione evento
-- `PATCH /api/agenda/{id}/feedback`: feedback post-evento
-- `POST /api/agenda/mark-seen`: segna elementi come visti
+**api_chat.py**: chatbot AI contestuale al principal
+- system prompt arricchito con contesto utente/ruolo (admin capabilities incluse)
+- stato conversazione isolato per utente
+- supporto action marker `[AVVIA_RICERCA]`
 
-**api_dashboard.py / api_sources.py / api_queries.py / api_runs.py / api_settings.py**: CRUD e business logic per le rispettive risorse.
+**api_voice.py**: voice mode (Gemini Live)
+- WebSocket bidirezionale browser <-> backend <-> Gemini Live
+- autenticazione via token inviato come primo messaggio WS (non query string)
+- audio PCM (input 16kHz / output 24kHz), relay asincrono in 3 task
+
+**api_settings.py**: settings user/system
+- update per-user settings sempre consentito
+- update system settings consentito solo ad admin
+- sync schedulazione GCP: update cron e gestione `pause/resume` in base a `scheduler_enabled`
+
+**api_runs.py**: run management
+- avvio/stop run owner-scoped (admin puo' vedere tutto)
+- progresso via polling `GET /api/runs/{id}/progress`
+- trigger OIDC su `/api/runs/start` supportato per Cloud Scheduler
 
 ### 4.10 Frontend
 
-**main.js**: Setup Alpine.js, autenticazione guard, onboarding carousel, navbar
-- Auth guard: redirect a `/login.html` se token assente
-- Onboarding: carousel 4 slide post-login con persistenza in localStorage
-- Navbar: links con icone SVG, layout responsive desktop/mobile
+**main.js**: setup Alpine, auth guard, navbar, notification bell
+- auth guard + refresh `or-user` da `/api/auth/me`
+- navbar role-aware (link Admin visibile solo a `role=admin`)
+- notification bell con dropdown: lista notifiche agenda/shared, mark-all-seen, routing contestuale
 
-**chatbot.js**: Componente chatbot
-- Chat testuale con persistenza localStorage
-- Pulsante "Nuova chat" con conferma a due click (icona + / cestino rosso) per evitare cancellazioni accidentali
-- Pulsante voice mode con icona microfono + onde (conversazione bidirezionale) e label testuale
-- Voice mode via WebSocket: cattura microfono (getUserMedia), invio PCM 16kHz, playback audio risposta
-- Overlay fullscreen durante voice mode con indicatore di stato e anelli animati
-- Layout responsive: toolbar su due righe su mobile (titolo + selettore esecuzioni), input compatto, altezza `100dvh`
+**agenda.js**: agenda UX e condivisione
+- tabs `pending|interested|shared|past_events`
+- share modal con user picker, ricerca live/debounce e nota opzionale
+- isolamento local state per filtri/sorting e mark shared seen
+
+**config.js**: configurazioni
+- separazione chiavi user/system lato payload
+- toggle scheduler on/off (`scheduler_enabled`) per admin
+
+**admin.js**: user lifecycle
+- create user, deactivate, activate, hard delete
+- feedback UI con stato azioni in corso
+
+**chatbot.js**:
+- storage chat key user-scoped (`or-chat-{username}`)
+- welcome e contesto per utente corrente
+- voice mode allineato al nuovo handshake token-first su WebSocket
 
 ---
 

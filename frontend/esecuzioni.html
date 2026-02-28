@@ -41,17 +41,63 @@
                 </a>
             </template>
             <div class="relative ml-3" x-data="notificationBell()">
-                <button @click="goToAgenda()" class="relative p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-navy-800 transition-colors">
+                <button @click.stop="toggleDropdown()" class="relative p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-navy-800 transition-colors">
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
                     <span x-show="count > 0" x-text="count > 99 ? '99+' : count" class="absolute -top-1 -right-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white" :class="{ 'animate-pulse': pulse }"></span>
                 </button>
+                <div x-show="open" x-cloak @click.stop class="absolute right-0 mt-2 w-80 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
+                    <div class="flex items-center justify-between border-b border-gray-100 px-3 py-2">
+                        <p class="text-sm font-semibold text-navy-800">Notifiche</p>
+                        <button x-show="hasNotifications" @click="markAllAsSeen()" class="text-xs font-medium text-accent-600 hover:text-accent-700">Segna tutte lette</button>
+                    </div>
+                    <div class="max-h-80 overflow-y-auto">
+                        <template x-if="loading">
+                            <div class="px-3 py-4 text-sm text-gray-500">Caricamento...</div>
+                        </template>
+                        <template x-if="!loading && !hasNotifications">
+                            <div class="px-3 py-4 text-sm text-gray-500">Nessuna nuova notifica</div>
+                        </template>
+                        <template x-if="!loading && sharedUnseen.length">
+                            <div class="border-b border-gray-100 px-3 py-2">
+                                <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-indigo-600">Condivisi con te</p>
+                                <div class="space-y-1">
+                                    <template x-for="n in sharedUnseen" :key="'s-' + n.share_id">
+                                        <button @click="openSharedNotification(n)" class="w-full rounded-lg px-2 py-2 text-left hover:bg-indigo-50">
+                                            <p class="text-xs font-medium text-gray-800"><span x-text="n.shared_by_display_name || n.shared_by_username"></span> ha condiviso: <span class="font-semibold" x-text="n.item.title"></span></p>
+                                            <p class="mt-0.5 text-[11px] text-gray-500" x-show="n.note" x-text="n.note"></p>
+                                            <p class="mt-0.5 text-[11px] text-gray-400" x-text="formatWhen(n.shared_at)"></p>
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                        <template x-if="!loading && agendaUnseen.length">
+                            <div class="px-3 py-2">
+                                <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-accent-600">Da valutare</p>
+                                <div class="space-y-1">
+                                    <template x-for="n in agendaUnseen" :key="'a-' + n.id">
+                                        <button @click="openAgendaNotification(n)" class="w-full rounded-lg px-2 py-2 text-left hover:bg-gray-50">
+                                            <p class="line-clamp-2 text-xs font-medium text-gray-800" x-text="n.title"></p>
+                                            <p class="mt-0.5 text-[11px] text-gray-400" x-text="formatWhen(n.first_seen_at)"></p>
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+            <div class="ml-3 hidden lg:flex items-center gap-2 border-l border-gray-200 pl-3" x-show="userName">
+                <span class="text-xs text-gray-500" x-text="userName"></span>
+                <span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold" :class="userRole === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'" x-text="userRole === 'admin' ? 'ADMIN' : 'USER'"></span>
+                <button @click="logout()" class="rounded-md px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 hover:text-navy-800">Esci</button>
             </div>
         </div>
     </div>
 </nav>
 <!-- Mobile bottom nav -->
 <nav class="fixed bottom-0 inset-x-0 z-50 border-t border-gray-200 bg-white md:hidden" x-data="navbar()">
-    <div class="grid grid-cols-5 h-16">
+    <div class="grid h-16" :class="links.length > 5 ? 'grid-cols-6' : 'grid-cols-5'">
         <template x-for="link in links" :key="link.href">
             <a :href="link.href" class="flex flex-col items-center justify-center gap-1 text-xs font-medium transition-colors relative" :class="link.active ? 'text-accent-600' : 'text-gray-500'">
                 <span x-html="link.icon" class="flex-shrink-0 [&>svg]:h-5 [&>svg]:w-5"></span>

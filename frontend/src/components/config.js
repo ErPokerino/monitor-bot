@@ -3,6 +3,7 @@ import { api } from '../api.js'
 export function configPage() {
   return {
     tab: 'sources',
+    isAdmin: false,
     // Sources
     sources: [],
     sourceFilter: 'all',
@@ -22,6 +23,10 @@ export function configPage() {
     newCompetency: '',
 
     async init() {
+      try {
+        const user = JSON.parse(localStorage.getItem('or-user') || 'null')
+        this.isAdmin = user?.role === 'admin'
+      } catch { this.isAdmin = false }
       await Promise.all([
         this.loadSources(),
         this.loadQueries(),
@@ -157,6 +162,7 @@ export function configPage() {
     async loadSettings() {
       try {
         this.settings = await api.getSettings()
+        if (this.settings.scheduler_enabled == null) this.settings.scheduler_enabled = '1'
         this._syncTagsFromSettings()
       } catch { window.toast.error('Errore caricamento impostazioni') }
     },
@@ -183,12 +189,39 @@ export function configPage() {
     async saveSettings() {
       try {
         this._syncSettingsFromTags()
-        this.settings = await api.updateSettings(this.settings)
+        this.settings.scheduler_enabled = this.schedulerEnabled ? '1' : '0'
+        const payload = {}
+        const userKeys = [
+          'relevance_threshold',
+          'company_name',
+          'company_sector',
+          'company_competencies',
+          'company_budget_min',
+          'company_budget_max',
+          'company_regions',
+          'company_description',
+          'search_scope_description',
+        ]
+        if (this.isAdmin) {
+          Object.assign(payload, this.settings)
+        } else {
+          for (const key of userKeys) payload[key] = this.settings[key]
+        }
+        this.settings = await api.updateSettings(payload)
         this._syncTagsFromSettings()
         this.settingsSaved = true
         window.toast.success('Impostazioni salvate')
         setTimeout(() => this.settingsSaved = false, 2000)
       } catch { window.toast.error('Errore nel salvataggio impostazioni') }
+    },
+
+    get schedulerEnabled() {
+      const value = String(this.settings.scheduler_enabled ?? '1').trim().toLowerCase()
+      return !['0', 'false', 'off', 'no', ''].includes(value)
+    },
+
+    toggleSchedulerEnabled() {
+      this.settings.scheduler_enabled = this.schedulerEnabled ? '0' : '1'
     },
 
     // ----- Helpers -----

@@ -14,7 +14,7 @@ Monitor Bot è un sistema di monitoraggio automatico pensato per aziende IT che 
 
 ### 1.3 Contesto d'uso
 
-Il sistema e' disponibile come web application enterprise con autenticazione. L'utente accede tramite login, viene guidato da un onboarding carousel alla prima visita, e puo' interagire con tutte le funzionalita' tramite interfaccia web. Il sistema puo' essere eseguito anche periodicamente (batch job schedulato) con notifica email dei risultati. Un chatbot AI integrato (con supporto voice mode) assiste l'utente nell'analisi dei risultati.
+Il sistema e' disponibile come web application enterprise multi-utente con autenticazione e ruoli (`admin | user`). L'utente accede tramite login, viene guidato da un onboarding carousel alla prima visita, e puo' interagire con tutte le funzionalita' tramite interfaccia web. Il sistema puo' essere eseguito anche periodicamente (batch job schedulato) con notifica email dei risultati. Un chatbot AI integrato (con supporto voice mode) assiste l'utente nell'analisi dei risultati con contesto personalizzato per utente e ruolo.
 
 ---
 
@@ -98,16 +98,18 @@ L'Agenda e' la pagina principale dell'applicazione e raccoglie tutte le opportun
 
 - **Valutazione**: ogni opportunita' puo' essere valutata con pollice su (interessante) o pollice giu' (scartata). Gli elementi scartati vengono esclusi dalle ricerche future.
 - **Iscrizione eventi**: per le opportunita' di tipo Evento, l'utente puo' segnare l'iscrizione.
+- **Condivisione opportunita'**: l'utente puo' condividere un item con un altro utente usando un selettore utenti con filtro automatico durante la digitazione.
 - **Pannello scadenze**: mostra gli elementi in scadenza entro N giorni (configurabile: 7/14/30/60).
 - **Feedback eventi passati**: per gli eventi a cui l'utente si e' iscritto e la cui data e' passata, e' possibile dare un feedback ("Lo consiglieresti?" e "Torneresti il prossimo anno?").
-- **Notifiche**: una campanella nella navbar mostra il numero di nuovi elementi non ancora visualizzati, con badge rosso stile YouTube.
+- **Notifiche**: la campanella nella navbar mostra badge numerico e, al click, apre un pannello con lista notifiche (agenda non viste + condivise non viste). Non avviene redirect automatico.
 - **Filtri e ricerca**: filtraggio per tipo (Bando/Evento/Concorso), categoria, stato iscrizione, ricerca testuale e ordinamento.
 - **Esclusione automatica**: gli elementi scartati e quelli con data di scadenza passata vengono automaticamente esclusi dalle ricerche future dello stesso utente.
 
 Tab disponibili:
 1. **Da valutare**: elementi non ancora valutati
 2. **Interessanti**: elementi valutati positivamente
-3. **Eventi passati**: eventi con iscrizione e data passata, per consultazione e feedback
+3. **Shared with me**: elementi condivisi da altri utenti
+4. **Eventi passati**: eventi con iscrizione e data passata, per consultazione e feedback
 
 ### 2.9 Pagina Esecuzioni
 
@@ -115,9 +117,30 @@ La pagina Esecuzioni mostra lo storico completo delle ricerche eseguite con tabe
 
 ### 2.10 Autenticazione
 
-L'accesso all'applicazione richiede autenticazione tramite username e password. La pagina di login include un toggle di visibilita' della password (icona occhio) per consentire all'utente di verificare quanto digitato. Dopo il login, viene generato un token di sessione che viene utilizzato per tutte le richieste API successive. In caso di token scaduto o non valido, l'utente viene reindirizzato alla pagina di login.
+L'accesso all'applicazione richiede autenticazione tramite username e password. La password e' verificata in backend con hashing Argon2.
 
-### 2.11 Onboarding
+Caratteristiche:
+- Sessioni persistenti su database (token hashato + scadenza + revoca)
+- Logout esplicito con invalidazione sessione
+- Protezione anti brute-force (blocco temporaneo dopo tentativi falliti)
+- Controllo ruoli lato API e lato UI (`admin | user`)
+- Redirect automatico al login in caso di token non valido/scaduto
+
+### 2.11 Gestione utenti (Admin)
+
+Gli utenti con ruolo admin hanno accesso alla pagina `/admin.html` con:
+
+- **Creazione utente**: username, nome visualizzato, password, ruolo
+- **Disattivazione utente**: blocco accesso e revoca sessioni attive
+- **Riattivazione utente**: ripristino accesso
+- **Eliminazione definitiva utente**: rimozione account e dati correlati
+- **Overview operativa**: utenti totali/attivi, sessioni attive, run in corso
+
+Vincoli funzionali:
+- un admin non puo' disattivare o eliminare il proprio account
+- deve esistere sempre almeno un admin attivo
+
+### 2.12 Onboarding
 
 Al primo accesso dopo il login, viene presentato un carousel di benvenuto con 4 slide:
 1. **Benvenuto**: introduzione a Opportunity Radar
@@ -127,7 +150,7 @@ Al primo accesso dopo il login, viene presentato un carousel di benvenuto con 4 
 
 L'utente puo' navigare tra le slide, saltare l'onboarding o completarlo. La scelta viene memorizzata e l'onboarding non viene riproposto nelle visite successive.
 
-### 2.12 Chatbot AI (Opportunity Bot)
+### 2.13 Chatbot AI (Opportunity Bot)
 
 Il chatbot AI integrato permette di:
 - Comprendere il funzionamento dell'applicazione
@@ -141,7 +164,7 @@ La toolbar del chatbot e' responsive: su desktop mostra titolo, selettore esecuz
 
 Il pulsante "Nuova chat" richiede una conferma a due click per evitare cancellazioni accidentali: al primo click mostra l'icona cestino con il testo "Conferma?", al secondo click resetta la conversazione.
 
-### 2.13 Voice Mode
+### 2.14 Voice Mode
 
 La modalita' vocale utilizza Gemini Live native audio per conversazioni in tempo reale. L'audio viene processato nativamente dal modello AI (senza passaggi intermedi STT/TTS), risultando in conversazioni naturali e fluenti in italiano.
 
@@ -265,6 +288,32 @@ Per attivare il voice mode, l'utente clicca il pulsante "Voce" (icona microfono 
 
 **Postcondizione**: Conversazione vocale completata con transcript persistito
 
+### UC11 – Condivisione opportunita' tra utenti
+
+**Attore**: Utente autenticato  
+**Precondizione**: Presenza di almeno un'opportunita' in agenda e almeno un altro utente attivo  
+**Flusso**:
+1. L'utente clicca `Condividi` su un elemento agenda
+2. Si apre la modale con selettore utenti
+3. L'utente digita nome/username e la lista si filtra automaticamente
+4. Seleziona il destinatario, opzionalmente inserisce una nota, conferma
+5. Il destinatario vede una nuova notifica in campanella e l'elemento nella tab `Shared with me`
+
+**Postcondizione**: Share registrato e notificabile al destinatario
+
+### UC12 – Lifecycle utente in area Admin
+
+**Attore**: Admin  
+**Precondizione**: Accesso autenticato con ruolo admin  
+**Flusso**:
+1. Admin accede a `/admin.html`
+2. Crea un nuovo utente o seleziona un utente esistente
+3. Può disattivarlo, riattivarlo o eliminarlo definitivamente
+4. In caso di disattivazione, le sessioni attive dell'utente vengono invalidate
+5. In caso di eliminazione definitiva, vengono rimossi anche i dati correlati dell'utente
+
+**Postcondizione**: Stato utente aggiornato in modo consistente con policy di sicurezza
+
 ---
 
 ## 4. Configurazione funzionale
@@ -278,6 +327,12 @@ Per attivare il voice mode, l'utente clicca il pulsante "Voce" (icona microfono 
 | `max_results` | config.toml | Limite risultati per collector (0 = illimitato) | 0 |
 | `cpv_codes` | config.toml | Codici CPV per filtrare bandi IT | 72, 48, 62, 64.2 |
 | `countries` | config.toml | Paesi per TED | EMEA |
+| `scheduler_enabled` | UI `/configurazioni.html` (admin) | Abilita/disabilita esecuzione programmata senza perdere giorno/orario | 1 (attivo) |
+| `scheduler_day` | UI `/configurazioni.html` (admin) | Giorno esecuzione settimanale (0 domenica ... 6 sabato) | 1 |
+| `scheduler_hour` | UI `/configurazioni.html` (admin) | Ora esecuzione settimanale | 2 |
+| `notification_emails` | UI `/configurazioni.html` (admin) | Destinatari report pipeline (CSV separato da virgola) | configurabile |
+
+I parametri scheduler/notifiche sono salvati nel database (settings di sistema) e sincronizzati su Cloud Scheduler in ambiente GCP.
 
 ### 4.2 Configurazione fonti
 
